@@ -1,4 +1,6 @@
 import os
+import threading
+import queue
 from . import log
 from werkzeug.utils import secure_filename
 from flask import request, redirect, flash
@@ -6,10 +8,12 @@ from .tools import *
 import json
 from ESL import *
 from manage import app
-import pandas as pd
 
 
-# @log.route("/get", methods=["POST"])
+q = queue.Queue(20)
+local_file_path = app.config["LOCAL_FILE_PATH"]
+
+
 def get_server_log(remote_path, local_path=None):
     """
     copy server running log
@@ -18,19 +22,13 @@ def get_server_log(remote_path, local_path=None):
         local_path   本地日志存储路径
 
     """
-    # ip = request.form.get("ip", "192.168.22.90")
-    # path = request.form.get('path', "/home/freeswitch/log")
-    # user = request.form.get("user", "root")
-    # password = request.form.get("pw", "nutrunck@@")
-    # file_name = request.form.get("file_name", "freeswitch.log")
-    # sshpass -p "nutrunck@@" rsync  root@192.168.22.90:/home/navita/log/freeswitch.log ./
-    password = app.config['password']
-    user = app.config['user']
-    ip = app.config['server_ip']
-    local_path = local_path if local_path else app.config['local_path']
-    info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}".format(
+
+    password = app.config['PASSWORD']
+    user = app.config['USER']
+    ip = app.config['SERVER_IP']
+    local_path = local_path if local_path else local_file_path
+    info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
         password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
-    # TODO 日志分析
     return {"a": info}
 
 
@@ -67,7 +65,7 @@ def call_func(func, *args, **kwargs) -> int:
     """
     callback
     """
-    return func(*args, **kwargs)
+    return eval(func)(*args, **kwargs)
 
 
 def listen_ESL():
@@ -75,7 +73,7 @@ def listen_ESL():
     ADD_SCHEDULE DEL_SCHEDULE CHANNEL_DESTROY CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP CUSTOM conference::maintenance
     '''
 
-    con = ESLconnection("192.168.22.90", "8021", "ClueCon")
+    con = ESLconnection("192.168.22.40", "8021", "ClueCon")
 
     if con.connected():
         con.events("json", "CHANNEL_CREATE")
@@ -84,21 +82,28 @@ def listen_ESL():
             msg = con.recvEvent()
             if msg:
                 print(msg.serialize("json"))
-                create_channel_dict = json.loads(msg.serialize("json"))
-                caller_username = create_channel_dict.get("Caller-Username")  # 呼叫者id
-                caller_destination_number = create_channel_dict.get("Caller-Destination-Number")  # 被呼叫者id
-                channel_call_uuid = create_channel_dict.get("Channel-Call-UUID")
+                q.put(msg)
 
-                log_path_list = app.config['log_path_list']
-                local_path = app.config['local_path']
-                for func, remote_log_path in log_path_list.items():
-                    filename = remote_log_path.split("/")[-1]
-                    get_server_log(remote_log_path, local_path)
-                    result = call_func(func, channel_call_uuid, filename)
-                    # TODO 写和前端交互的文本
-                    write_node(func)
-                import time
-                time.sleep(1)
+
+def log_handle():
+    while 1:
+        msg = q.get()
+        # print(msg.serialize("json"))
+        create_channel_dict = json.loads(msg.serialize("json"))
+        caller_username = create_channel_dict.get("Caller-Username")  # 呼叫者id
+        caller_destination_number = create_channel_dict.get("Caller-Destination-Number")  # 被呼叫者id
+        core_uuid = create_channel_dict.get("Core-UUID")
+        channel_call_uuid = create_channel_dict.get("Unique-ID")
+
+        log_path_list = app.config['LOG_PATH_LIST']
+        local_path = app.config['LOCAL_FILE_PATH']
+        for func, remote_log_path in log_path_list.items():
+            filename = remote_log_path.split("/")[-1]
+            get_server_log(remote_log_path, local_path)
+            log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
+            log_threading.start()
+            # call_func(func, core_uuid, channel_call_uuid, filename)
+            # freeswitch(core_uuid, channel_call_uuid, filename)
 
 
 if __name__ == '__main__':

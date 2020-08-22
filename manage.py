@@ -1,11 +1,11 @@
 from flask import Flask
+from threading import Thread
 from flask_docs import ApiDoc
-from views.portal import portal
+
 from views.websocket import websocket
-from views.log import log
+from views.log import log, views
 app = Flask(__name__)
 
-app.register_blueprint(portal, url_prefix="/portal")
 app.register_blueprint(websocket, url_prefix="/websocket")
 app.register_blueprint(log, url_prefix="/log")
 # api docs config
@@ -18,5 +18,7 @@ app.config.from_object("settings")
 ApiDoc(app)
 
 if __name__ == '__main__':
+    Thread(target=views.listen_ESL).start()
+    Thread(target=views.log_handle).start()
     app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])
 

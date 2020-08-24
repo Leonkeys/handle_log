@@ -27,7 +27,7 @@ LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
 CONF_FILE_PATH = "/home/nufront/桌面/config"
 
 # sqlalchemy config
-DB_CONNECT = "mysql+pymysql://root:123456@192.168.22.165:3306/loghandle?charset=utf8"
+DB_CONNECT = "mysql+pymysql://root:123456@192.168.22.165:3306/log_handle?charset=utf8"
 SQLALCHEMY_DATABASE_URI = DB_CONNECT
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SQLALCHEMY_ECHO = True

@@ -1,7 +1,13 @@
 import os
 from manage import app
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+DB_CONNECT = app.config['DB_CONNECT']
 ALLOWED_EXTENSIONS = app.config['ALLOWED_EXTENSIONS']
 LOCAL_FILE_PATH = app.config['LOCAL_FILE_PATH']
+engine = create_engine(DB_CONNECT)
+Session = sessionmaker(bind=engine)
 
 
 def allowed_file(filename):

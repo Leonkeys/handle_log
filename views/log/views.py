@@ -100,10 +100,9 @@ def log_handle():
         for func, remote_log_path in log_path_list.items():
             filename = remote_log_path.split("/")[-1]
             get_server_log(remote_log_path, local_path)
-            log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
-            log_threading.start()
-            # call_func(func, core_uuid, channel_call_uuid, filename)
-            # freeswitch(core_uuid, channel_call_uuid, filename)
+            # log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
+            # log_threading.start()
+            call_func(func, core_uuid, channel_call_uuid, filename)
 
 
 if __name__ == '__main__':

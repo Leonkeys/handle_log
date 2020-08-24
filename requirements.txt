@@ -1,0 +1,6 @@
+python-ESL
+sqlalchemy
+Flask
+Flask-Docs
+Flask-SQLAlchemy
+pymysql==0.10.0

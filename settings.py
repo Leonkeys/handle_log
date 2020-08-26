@@ -7,9 +7,6 @@ PORT = "8004"
 
 DEBUG = True
 
-ALLOWED_EXTENSIONS = set(['log'])
-
-UPLOAD_FOLDER = "/tmp/"
 
 SERVER_IP = "192.168.22.40"
 
@@ -24,8 +21,8 @@ LOG_PATH_LIST = {
 
 LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
 
-CONF_FILE_PATH = "/home/nufront/桌面/config"
-
+TEMPLATE_CONF_FILE_PATH = "/home/nufront/桌面/config/template/"
+CONF_FILE_PATH = "/home/nufront/桌面/config/"
 # sqlalchemy config
 DB_CONNECT = "mysql+pymysql://root:123456@192.168.22.165:3306/log_handle?charset=utf8"
 SQLALCHEMY_DATABASE_URI = DB_CONNECT

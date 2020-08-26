@@ -1,5 +1,4 @@
 import os
-import time
 import threading
 import queue
 from . import log
@@ -13,6 +12,11 @@ from manage import app
 
 q = queue.Queue(20)
 local_file_path = app.config["LOCAL_FILE_PATH"]
+ESL_HOST = app.config['ESL_HOST']
+ESL_PORT = app.config['ESL_PORT']
+ESL_PASSWORD = app.config['ESL_PASSWORD']
+
+remote_log_path_list = app.config['REMOTE_LOG_PATH_LIST']
 
 
 def get_server_log(remote_path, local_path=None):
@@ -51,12 +55,12 @@ def upload_file():
             flash('No selected file')
             return redirect(request.url)
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['LOCAL_FILE_PATH'], filename)
+        filepath = os.path.join(local_file_path, filename)
         if os.path.isfile(filepath):
             file.save(filepath)
         else:
-            if not app.config['LOCAL_FILE_PATH']:
-                os.makedirs(app.config['LOCAL_FILE_PATH'])
+            if not local_file_path:
+                os.makedirs(local_file_path)
             os.mknod(filepath)
             file.save(filepath)
         return '{"filename":"%s"}' % filename
@@ -76,7 +80,7 @@ def listen_ESL():
     '''
 
     msg_dict = dict()
-    con = ESLconnection("192.168.22.40", "8021", "ClueCon")
+    con = ESLconnection(ESL_HOST, ESL_PORT, ESL_PASSWORD)
 
     if con.connected():
         con.events("json", "CHANNEL_CREATE")
@@ -105,20 +109,19 @@ def log_handle():
         create_channel_dict_l = q.get()
         print(create_channel_dict_l)
         # create_channel_dict = json.loads(msg.serialize("json"))
-        caller_username = create_channel_dict_l.get("Caller-Username")  # 呼叫者id
-        caller_destination_number = create_channel_dict_l.get("Caller-Destination-Number")  # 被呼叫者id
+        # caller_username = create_channel_dict_l.get("Caller-Username")  # 呼叫者id
+        # caller_destination_number = create_channel_dict_l.get("Caller-Destination-Number")  # 被呼叫者id
         core_uuid = create_channel_dict_l[0].get("Core-UUID")
         unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l]
-
-        log_path_list = app.config['LOG_PATH_LIST']
-        local_path = app.config['LOCAL_FILE_PATH']
-        for func, remote_log_path in log_path_list.items():
+        # TODO 呼叫方日志分析
+        for func, remote_log_path in remote_log_path_list.items():
             filename = remote_log_path.split("/")[-1]
-            get_server_log(remote_log_path, local_path)
+            get_server_log(remote_log_path, local_file_path)
             # log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
             # log_threading.start()
-            # call_func(func, core_uuid, unique_id, filename)
-            freeswitch(core_uuid, unique_id_list, filename)
+            call_func(func, core_uuid, unique_id_list, filename)
+
+        # TODO 呼叫方日志分析
 
 
 if __name__ == '__main__':

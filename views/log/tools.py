@@ -3,11 +3,19 @@ from shutil import copyfile
 from manage import app
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from .common import common_log_analyse  as com
+
+
 
 DB_CONNECT = app.config['DB_CONNECT']
 LOCAL_FILE_PATH = app.config['LOCAL_FILE_PATH']
 engine = create_engine(DB_CONNECT)
 Session = sessionmaker(bind=engine)
+
+log_result={ "navita":{"log_valid":"1","call_type":[None,None,None], "state":None, "err_msg":None,"build_id":None,"delay_time":None}, "dis":{ "log_valid":"1", "dis_start":"nonono"}, "analyse_error":None}
+
+
+
 
 
 # def caller():

@@ -113,7 +113,8 @@ def log_handle():
         # caller_destination_number = create_channel_dict_l.get("Caller-Destination-Number")  # 被呼叫者id
         core_uuid = create_channel_dict_l[0].get("Core-UUID")
         unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l]
-        # TODO 呼叫方日志分析
+
+        # caller()
         for func, remote_log_path in remote_log_path_list.items():
             filename = remote_log_path.split("/")[-1]
             get_server_log(remote_log_path, local_file_path)
@@ -122,6 +123,7 @@ def log_handle():
             call_func(func, core_uuid, unique_id_list, filename)
 
         # TODO 呼叫方日志分析
+        # log_handle_func()
 
 
 if __name__ == '__main__':

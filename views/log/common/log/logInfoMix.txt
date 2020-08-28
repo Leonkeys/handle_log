@@ -1,0 +1,62 @@
+
+---------------------------------
+android log
+---------------------------------
+
+11-05 09:47:59.808 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.828 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+11-05 09:47:59.828 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.848 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+11-05 09:47:59.848 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.868 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+11-05 09:47:59.868 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.888 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+11-05 09:47:59.888 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.908 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+11-05 09:47:59.908 W/bt-btif ( 2317): ### UNDERRUN :: ONLY READ 0 BYTES OUT OF 512 ###
+11-05 09:47:59.928 E/bt-btif ( 2317): UIPC_Read : channel 1 closed
+
+11-05 09:48:34.768 E/audio_a2dp_hw( 1405): stop_audio_datapath: audiopath stop failed
+11-05 09:48:34.768 I/audio_a2dp_hw( 1405): skt_disconnect: fd 30
+11-05 09:48:34.768 W/AudioFlinger( 1405): Thread AudioOut_2 cannot connect to the power manager service
+11-05 09:48:34.768 I/audio_hw_primary( 1405): out_set_parameters(): kvpairs = routing=0
+11-05 09:48:34.768 I/audio_hw_primary( 1405): out_set_parameters(): adev->out_device:0x2, val = 0x0
+11-05 09:48:34.768 W/AudioFlinger( 1405): Thread AudioOut_4 cannot connect to the power manager service
+11-05 09:48:34.768 W/AudioPolicyManagerBase( 1405): stopOutput() unknow output 78
+11-05 09:48:34.768 W/AudioPolicyManagerBase( 1405): releaseOutput() releasing unknown output 78 
+
+---------------------------------
+android log
+---------------------------------
+
+
+-----------------------------
+hwnsa log
+-----------------------------
+
+2018-09-16 10:11:04:hwnsa:rcv event:17,sfn:500
+2018-09-16 10:11:04:==hwnsa:tgt cap,sta:5c6c7cff8d6b==
+2018-09-16 10:11:04:hwnsa:tgt cap,recv TRF_REQ,negotiate switchType:2,sfn:500
+2018-09-16 10:11:04:hwnsa:snd drv event:18,sfn:500
+2018-09-16 10:11:04:hwnsa:tgt Cap,send TRF_RSP,sta_id:256,sfn:500
+2018-09-16 10:11:04:hwnsa:tgt cap,rcv UL_DATA,idx:0,sfn:511
+
+-----------------------------
+hwnsa log
+-----------------------------
+
+
+-------------------
+others
+-------------------
+
+2017-10-01 09:47:00.093 DEBUG 1616 --- [ost-startStop-1] .s.b.w.f.OrderedHttpPutFormContentFilter : Filter 'httpPutFormContentFilter' configured successfully
+
+09-05 09:13:07.381 14465 14466 D fishjamtest: Accept begin
+
+server01:  2017-10-01 09:47:00.093 DEBUG 1616 --- [ost-startStop-1] .s.b.w.f.OrderedHttpPutFormContentFilter : Filter 'httpPutFormContentFilter' configured successfully
+
+09-05 10:04:44.671 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Server version:        Apache Tomcat/8.5.15
+
+$remote_addr - [$time_local] "$request" $status $body_bytes_sent $request_time "$http_referer" "$http_user_agent" - $http_x_forwarded_for
+

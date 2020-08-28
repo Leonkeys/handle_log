@@ -1,0 +1,39 @@
+快速切换log分析
+
+源端cap的hwnsa_log
+2018-09-16 10:10:55:hwnsa:src cap,cqi type:2,cmdir:0,cm Rsul:31,Rsu2:32==
+src cap:源端cap
+cqi type:2本次切换请求是快速切换，1则为普通切换过程
+2018-09-16 10:10:55:==hwnsa:src cap,sta:id256,mac:5c6c7cff8d6b,hoReqCounter:220==
+2018-09-16 10:10:55:hwnsa:snd drv event:17,sfn:76
+源端cap发送TRF_REQ到目的cap
+2018-09-16 10:10:55:hwnsa:rcv event:18,sfn:77
+2018-09-16 10:10:55:hwnsa:src cap,rcv TRF_RSP,idx:0,sfn:77
+源端cap收到目的cap的回复，根据回复信息，确认是否可进行快速切换
+Note：如果一直遇到超时的情况，检查iniNetCfg配置表，看配置是否正确
+2018-09-16 10:10:55:hwnsa:snd HO_CMD,Type:2,staID:256,VldTime:30,TA:0,sfn:77
+向sta发送HO_CMD，有此条log并且type为2，则表示源端cap快速切换正常
+2018-09-1610:10:56:hwnsa:staexit,staid:256,reason:4,uptime_sn:3408198,alive_time:3407948,cqi_sn_num:250,sfn:326
+
+目的端cap的hwnsa_log
+2018-09-16 10:11:04:hwnsa:rcv event:17,sfn:500
+2018-09-16 10:11:04:==hwnsa:tgt cap,sta:5c6c7cff8d6b==
+tgt cap:目的端cap
+2018-09-16 10:11:04:hwnsa:tgt cap,recv TRF_REQ,negotiate switchType:2,sfn:500
+目的端cap收到了TRF_REQ，并且是一个快速切换请求，type为1则是普通切换
+2018-09-16 10:11:04:hwnsa:snd drv event:18,sfn:500
+2018-09-16 10:11:04:hwnsa:tgt Cap,send TRF_RSP,sta_id:256,sfn:500
+回复TRF_RSP给源端cap
+2018-09-16 10:11:04:hwnsa:tgt cap,rcv UL_DATA,idx:0,sfn:511
+Sta成功入网，收到上行数据，有此条log则表示目的端cap快速切换正常
+
+快速切换的log开关和无损切换类似
+cat /proc/cap/ell_hwnsa_info
+
+快速切换的配置项
+Cap侧：cqi_instead_ho设置为1，hwnsaEnable为1
+Sta侧：cqi_instead_ho设置为1，hwnsa_enable为1，HO_OPT为0
+
+快速切换主要关注两点即可
+1. 经常超时，遇到此种情况首先检查iniNetCfg项，确保邻区配置正常，如果还是一直超时，可反馈给我分析
+2. Sta发起的是快速切换请求，即type为2，但cap发送给sta的切换命令一直是普通切换，即type为1，遇到此种情况，也可反馈给我分析

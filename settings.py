@@ -21,16 +21,21 @@ ESL_PASSWORD = "ClueCon"
 # log path
 REMOTE_LOG_PATH_LIST = {
     "freeswitch": "/home/Trunck/navita/log/freeswitch.log",
-    "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
+    # "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
 }
 LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
-CALLER_LOG_PATH = "/home/nufront/桌面/local_log/caller"
-CALLEE_LOG_PATH = "/home/nufront/桌面/local_log/callee"
-
+CALLER_LOG_PATH = "/home/nufront/桌面/local_log/caller/"
+CALLEE_LOG_PATH = "/home/nufront/桌面/local_log/callee/"
+SHOW_LOG_PATH = "/home/nufront/桌面/log/"
 
 # config file
-TEMPLATE_CONF_FILE_PATH = "/home/nufront/桌面/config/template/"
-CONF_FILE_PATH = "/home/nufront/桌面/config/"
+# TEMPLATE_CONF_FILE_PATH = "/home/nufront/桌面/conf/template/"
+# CONF_FILE_PATH = "/home/nufront/桌面/conf/"
+
+TEMPLATE_CONF_FILE_PATH = "/home/nufront/桌面/html/TRUNCKLOG/countdown_files/conf/template/"
+CONF_FILE_PATH = "/home/nufront/桌面/html/TRUNCKLOG/countdown_files/conf/"
+# TEMPLATE_CONF_FI# LE_PATH = "./static/countdown_files/conf/template/"
+# CONF_FILE_PATH = "./static/countdown_files/conf/"
 
 
 # sqlalchemy config

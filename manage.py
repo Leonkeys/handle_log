@@ -4,7 +4,7 @@ from flask_docs import ApiDoc
 
 from views.websocket import websocket
 from views.log import log, views
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates", static_folder="static/countdown_files")
 
 app.register_blueprint(websocket, url_prefix="/websocket")
 app.register_blueprint(log, url_prefix="/log")

@@ -69,18 +69,18 @@ class MyMongo(object):
         finally:
             mongo_client.close()
 
-    def del_old_data(self, date, h_m):
-        """删除N天前的数据, 默认为LIMIT
-        date: 日期, 格式20180315
-        h_m: 当前hour and minute(到23:59时执行清理操作)"""
-        if h_m != '2359':
-            return
-        min_date = get_delta_date(date, LIMIT)
-        try:
-            self.mongodb['main'].remove({'_id': {'$lt': min_date}})
-            self.mongodb['registry'].remove({'timestamp': {'$lt': min_date}})
-        except Exception as err:
-            logging.error("{} delete documents before {} days ago error: {}".format(self.db_name, LIMIT, repr(err)))
+    # def del_old_data(self, date, h_m):
+    #     """删除N天前的数据, 默认为LIMIT
+    #     date: 日期, 格式20180315
+    #     h_m: 当前hour and minute(到23:59时执行清理操作)"""
+    #     if h_m != '2359':
+    #         return
+    #     min_date = get_delta_date(date, LIMIT)
+    #     try:
+    #         self.mongodb['main'].remove({'_id': {'$lt': min_date}})
+    #         self.mongodb['registry'].remove({'timestamp': {'$lt': min_date}})
+    #     except Exception as err:
+    #         logging.error("{} delete documents before {} days ago error: {}".format(self.db_name, LIMIT, repr(err)))
             
     def del_all_data(self):
         try:
@@ -153,17 +153,13 @@ class Processor(object):
         num_str = num_str + choice(random_char)
         
         self.main_stage = work_dynamic.process_main_stage(self.main_stage,num_str,line_res, match_id, self.log_format_list)
-        
-                
 
     def _generate_bulk_docs(self, date):
         self.bulk_documents.extend(self.main_stage)
 
-
     def _reset_every_minute(self):
         self.processed_num = self.invalid_log = 0
         self.main_stage = []
-		
 
     def go_process(self):
         """开始处理日志文件"""
@@ -302,19 +298,19 @@ def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LI
     #return analyse_result
 
 
-def inquire_key_list(log_name):
-    processor = Processor(log_name)
-    return processor.db_key_list()
-
-def db_delete(log_name):
-    processor = Processor(log_name)
-    processor.db_delete()
-
-
-def todo_log():
-    """通过配置文件取得要处理的日志文件"""
-    all_find = glob.glob(LOG_PATH)
-    return [one for one in all_find if path.basename(one) not in EXCLUDE]
+# def inquire_key_list(log_name):
+#     processor = Processor(log_name)
+#     return processor.db_key_list()
+#
+# def db_delete(log_name):
+#     processor = Processor(log_name)
+#     processor.db_delete()
+#
+#
+# def todo_log():
+#     """通过配置文件取得要处理的日志文件"""
+#     all_find = glob.glob(LOG_PATH)
+#     return [one for one in all_find if path.basename(one) not in EXCLUDE]
 
 
 # ----日志相关

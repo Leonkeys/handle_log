@@ -3,7 +3,7 @@ import threading
 import queue
 from . import log
 from werkzeug.utils import secure_filename
-from flask import request, redirect, flash
+from flask import request, redirect, flash, render_template
 from .tools import *
 import json
 from ESL import *
@@ -35,6 +35,10 @@ def get_server_log(remote_path, local_path=None):
     info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
         password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
     return {"a": info}
+
+# @log.route("/TRUNCKLOG", methods=["GET"])
+# def index():
+#     return render_template("index.html")
 
 
 @log.route("/upload", methods=["GET", "POST"])

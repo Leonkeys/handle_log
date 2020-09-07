@@ -22,6 +22,8 @@ ESL_PASSWORD = "ClueCon"
 REMOTE_LOG_PATH_LIST = {
     "freeswitch": "/home/Trunck/navita/log/freeswitch.log",
     # "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
+    # "api": "/home/Trunck/navita/log/api.log",
+    # "mqtt": "/home/Trunck/navita/log/mqtt.log"
 }
 LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
 CALLER_LOG_PATH = "/home/nufront/桌面/local_log/caller/"

@@ -1,4 +1,5 @@
 import os
+import logging
 import threading
 import queue
 from . import log
@@ -19,7 +20,7 @@ ESL_PASSWORD = app.config['ESL_PASSWORD']
 remote_log_path_list = app.config['REMOTE_LOG_PATH_LIST']
 
 
-def get_server_log(remote_path, local_path=None):
+def get_server_log(remote_path, local_file=None):
     """
     copy server running log
     request:
@@ -27,14 +28,17 @@ def get_server_log(remote_path, local_path=None):
         local_path   本地日志存储路径
 
     """
-
-    password = app.config['PASSWORD']
-    user = app.config['USER']
-    ip = app.config['SERVER_IP']
-    local_path = local_path if local_path else local_file_path
-    info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
-        password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
-    return {"a": info}
+    try:
+        password = app.config['PASSWORD']
+        user = app.config['USER']
+        ip = app.config['SERVER_IP']
+        local_path = local_file if local_file else local_file_path
+        info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
+            password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
+        return {"a": info}
+    except Exception as e:
+        logging.warning(e)
+        print("server log is not found:{}".format(remote_path))
 
 # @log.route("/TRUNCKLOG", methods=["GET"])
 # def index():
@@ -121,10 +125,13 @@ def log_handle():
         caller()
         for func, remote_log_path in remote_log_path_list.items():
             filename = remote_log_path.split("/")[-1]
-            get_server_log(remote_log_path, local_file_path)
+            if remote_log_path:
+                get_server_log(remote_log_path, local_file_path)
             # log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
             # log_threading.start()
             call_func(func, core_uuid, unique_id_list, filename)
+        filename = "callee"
+        callee(core_uuid, unique_id_list, filename)
 
 
 if __name__ == '__main__':

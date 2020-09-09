@@ -14,10 +14,10 @@ Session = sessionmaker(bind=engine)
 log_result = {
     "caller": {
         "log_valid": "1",
-        "call_type": ['singlecall', '3509', '4500'],
+        "call_type": ['audiosingle', '3509', '4500'],
         "state": "1",
         "err_msg": None,
-        "build_id": None,
+        "build_id": "151123456",
         "delay_time": 0
     },
     "navita": {
@@ -25,24 +25,40 @@ log_result = {
         "call_type": [None, None, None],
         "state": None,
         "err_msg": None,
-        "build_id": None,
+        "build_id": "151123456",
         "delay_time": None
     },
     "dispatcher": {
         "log_valid": "1",
-        "call_type": ["singlecall", "3509", "4500"],
+        "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
         "err_msg": None,
-        "build_id": None,
+        "build_id": "151123456",
         "delay_time": 11111
     },
     "api": {
         "log_valid": "1",
-        "call_type": ["single_call", "3509", "4500"],
+        "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
         "err_msg": None,
-        "build_id": None,
+        "build_id": "151123456",
         "delay_time": 10000
+    },
+    "mqtt": {
+        "log_valid": "1",
+        "call_type": ["audiosingle", "3509", "4500"],
+        "state": "1",
+        "err_msg": None,
+        "build_id": "151123456",
+        "delay_time": 27017
+    },
+    "callee": {
+        "log_valid": "1",
+        "call_type": ["audiosingle", "3509", "4500"],
+        "state": "1",
+        "err_msg": None,
+        "build_id": "151123456",
+        "delay_time": 27017
     },
     "analyse_error": None}
 
@@ -64,7 +80,7 @@ def freeswitch(core_uuid, unique_id_list, filename):
     截取当前通话相关的日志&&freeswitch日志分析
     """
     log_list = list()
-    if not unique_id_list :
+    if not unique_id_list:
         return
     local_file = LOCAL_FILE_PATH + "/" + filename
     local_log = LOCAL_FILE_PATH + "/freeswitch/" + core_uuid
@@ -84,6 +100,7 @@ def freeswitch(core_uuid, unique_id_list, filename):
     com.analyse_main(log_result, local_log)
     mode = "freeswitch"
     print(log_result)
+    # log_result.get('navita').get('call_type')[0] = "audiogroup"
     write_node(log_result.get('navita'), mode, log_list)
 
 
@@ -105,13 +122,13 @@ def dispatcher(core_uuid, unique_id_list, filename):
             for line_b in old_local_file:
                 if line_b:
                     line_str = str(line_b, encoding="utf-8")
-                    if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
+                    # if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                         # print(line_str)
-                        log_list.append(line_b)
-                        new_local_file.write(line_b)
+                    log_list.append(line_b)
+                    new_local_file.write(line_b)
     com.analyse_main(log_result, local_log)
     mode = "dispatcher"
-    write_node(log_result, mode, log_list)
+    write_node(log_result.get("dispatcher"), mode, log_list)
 
 
 def api(core_uuid, unique_id_list, filename):
@@ -127,26 +144,52 @@ def api(core_uuid, unique_id_list, filename):
     if not os.path.exists(LOCAL_FILE_PATH + "/api"):
         os.makedirs(LOCAL_FILE_PATH + "/api")
 
-    with open(local_file, "rb") as old_local_file:
-        with open(local_log, "wb") as new_local_file:
-            for line_b in old_local_file:
-                if line_b:
-                    line_str = str(line_b, encoding="utf-8")
-                    if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
-                        # print(line_str)
-                        log_list.append(line_b)
-                        new_local_file.write(line_b)
-    com.analyse_main(log_result, local_log)
+    #  with open(local_file, "rb") as old_local_file:
+    #      with open(local_log, "wb") as new_local_file:
+    #          for line_b in old_local_file:
+    #              if line_b:
+    #                  line_str = str(line_b, encoding="utf-8")
+    #                  if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
+    #                      # print(line_str)
+    #                      log_list.append(line_b)
+    #                      new_local_file.write(line_b)
+    # com.analyse_main(log_result, local_log)
+    log_list = [
+        b"api\n",
+        b"aaaaaaaaaaaaaaaaaaaaa\n",
+        b"ppppppppppppppppppppp\n",
+        b"iiiiiiiiiiiiiiiiiiiii\n"
+    ]
     mode = "api"
-    write_node(log_result, mode, log_list)
+    write_node(log_result.get("api"), mode, log_list)
 
 
-def mqtt():
+def mqtt(core_uuid, unique_id_list, filename):
     """
     mqtt日志分析
     mqtt日志分析指mqtt消息通道收到的消息的分析不是本身服务运行状态分析
     """
-    pass
+    mode = "mqtt"
+    log_list = [
+        b"mqtt\n"
+        b"qqqqqqqqqqqqqqqqqqqqqqq\n",
+        b"wwwwwwwwwwwwwwwwwwwwwwwww\n",
+        b"eeeeeeeeeeeeeeeeeeeeeeeeeee\n",
+        b"rrrrrrrrrrrrrrrrrrrrrrrrrrrr\n"
+    ]
+    write_node(log_result.get("mqtt"), mode, log_list)
+
+
+def callee(core_uuid, unique_id_list, filename):
+    mode = "callee"
+    log_list = [
+        b"callee\n"
+        b"qqqqqqqqqqqqqqqqqqqqqqq\n",
+        b"wwwwwwwwwwwwwwwwwwwwwwwww\n",
+        b"eeeeeeeeeeeeeeeeeeeeeeeeeee\n",
+        b"rrrrrrrrrrrrrrrrrrrrrrrrrrrr\n"
+    ]
+    write_node(log_result.get("callee"), mode, log_list)
 
 
 def write_node(handle_msg, mode, log_list):
@@ -157,7 +200,7 @@ def write_node(handle_msg, mode, log_list):
 
     # call_type_list = [audiosingle, videosingle, audiogroup, videogroup, ...]
     # 视频单呼组呼，音频单呼组呼。
-    if call_type[0] in ["audiosingle", "vediosingle", "singlecall"]:
+    if call_type[0] in ["audiosingle", "videosingle", "videogroup", "audiogroup", "singlecall"]:
         write_conf(mode, handle_msg)
         write_log(handle_msg, log_list, mode)
 
@@ -172,23 +215,44 @@ def write_conf(mode, handle_msg):
     template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
     conf_file_path = app.config["CONF_FILE_PATH"]
     if mode == "caller":
-        write_line = 6
+        mode_write_line = 6
+        delay_time_write_line = 34
     elif mode == "freeswitch":
-        write_line = 8
+        mode_write_line = 8
+        delay_time_write_line = 36
     elif mode == "dispatcher":
-        write_line = 24
+        mode_write_line = 24
+        delay_time_write_line = 38
+    elif mode == "api":
+        mode_write_line = 10
+        delay_time_write_line = 40
+    elif mode == "mqtt":
+        mode_write_line = 12
+        delay_time_write_line = 42
     else:
         # callee
-        write_line = 14
-
-    if call_type[0] == "singlecall":
-        build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
+        mode_write_line = 14
+        delay_time_write_line = 44
+    build_id = None
+    if call_type[0] in ["singlecall", "audiosingle"]:
+        if mode == "caller":
+            build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
         conf_file_name = "start_single_audio_call.conf"
-    elif call_type[0] == "groupcall":
-        build_id = handle_msg.get("build_id", "-")
+    elif call_type[0] == "videosingle":
+        if mode == "caller":
+            build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
+        conf_file_name = "start_single_video_call.conf"
+
+    elif call_type[0] == "audiogroup":
+        if mode == "caller":
+            build_id = handle_msg.get("build_id", "-")
         conf_file_name = "start_group_audio_call.conf"
+    elif call_type[0] == "videogroup":
+        if mode == "caller":
+            build_id = handle_msg.get("build_id", "-")
+        conf_file_name = "start_group_video_call.conf"
     else:
-        build_id = "---"
+        build_id = None
         conf_file_name = None
 
     if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
@@ -199,11 +263,12 @@ def write_conf(mode, handle_msg):
         for conf_line in conf_file_path:
             file_msg_list.append(conf_line)
         if state:
-            file_msg_list[write_line - 1] = state + "\n"
+            file_msg_list[mode_write_line - 1] = state + "\n"
         if build_id:
             file_msg_list[3] = file_msg_list[15]
             file_msg_list[15] = build_id + "\n"
         if delay_time:
+            file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
             old_delay_time = int(file_msg_list[45].replace("\n", ""))
             file_msg_list[45] = str(old_delay_time + int(delay_time)) + "\n"
         conf_file_path.seek(0)
@@ -219,7 +284,7 @@ def write_log(handle_msg, log_list, mode):
     err_msg = handle_msg.get("err_msg")
     show_log_path = app.config["SHOW_LOG_PATH"]
     call_type = handle_msg.get("call_type")
-    if call_type[0] == "audiosingle":
+    if call_type[0] in ["audiosingle", "singlecall"]:
         mode_show_log_path = show_log_path + "start_single_audio_call/" + mode + "/"
     elif call_type[0] == "videosingle":
         mode_show_log_path = show_log_path + "start_single_video_call/" + mode + "/"

@@ -1,3 +1,7 @@
-/home/navita/log/freeswitch.log   /home/ftpuser/ftp/navita/
-/home/navita/log/dispatcher.log   /home/ftpuser/ftp/dis/
+/home/Trunck/navita/log/navita.log   /home/ftpuser/ftp/navita/
+/home/Trunck/navita/log/dispatcher.*   /home/ftpuser/ftp/dis/
+/home/Trunck/fdfs/storage/logs/storaged.log   /home/ftpuser/ftp/fdfs/
 /var/log/ruleEngine/logFile.*.log   /home/ftpuser/ftp/ruleEngine/
+/home/Trunck/EUHTRUNCK/log/eDC/log/*   /home/ftpuser/ftp/eDC/
+/home/Trunck/EUHTRUNCK/log/eUE/log/*   /home/ftpuser/ftp/eUE/
+/home/Trunck/EUHTRUNCK/log/eMon/log/*   /home/ftpuser/ftp/eMon/

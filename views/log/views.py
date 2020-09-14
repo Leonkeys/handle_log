@@ -3,8 +3,7 @@ import logging
 import threading
 import queue
 from . import log
-from werkzeug.utils import secure_filename
-from flask import request, redirect, flash, render_template
+from flask import request, redirect, flash
 from .tools import *
 import json
 from ESL import *
@@ -12,11 +11,10 @@ from manage import app
 
 
 q = queue.Queue(20)
-local_file_path = app.config["LOCAL_FILE_PATH"]
 ESL_HOST = app.config['ESL_HOST']
 ESL_PORT = app.config['ESL_PORT']
 ESL_PASSWORD = app.config['ESL_PASSWORD']
-
+local_file_path = app.config["LOCAL_FILE_PATH"]
 remote_log_path_list = app.config['REMOTE_LOG_PATH_LIST']
 
 
@@ -33,16 +31,18 @@ def get_server_log(remote_path, local_file=None):
         user = app.config['USER']
         ip = app.config['SERVER_IP']
         local_path = local_file if local_file else local_file_path
-        info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
-            password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
-        return {"a": info}
+        if isinstance(remote_path, list):
+            for path in remote_path:
+                info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
+                    password=password, user=user, ip=ip, remote_path=path, local_path=local_path))
+        elif isinstance(remote_path, str):
+
+            info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
+                password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
+        # return {"a": info}
     except Exception as e:
         logging.warning(e)
         print("server log is not found:{}".format(remote_path))
-
-# @log.route("/TRUNCKLOG", methods=["GET"])
-# def index():
-#     return render_template("index.html")
 
 
 @log.route("/upload", methods=["GET", "POST"])
@@ -51,6 +51,9 @@ def upload_file():
     android and windows upload file
     request:
         file
+        call_mode  呼叫类型 callee||caller
+        core_uuid  标识呼叫的uuid
+        call_sip
     :return:
     """
     if request.method == 'POST':
@@ -58,35 +61,39 @@ def upload_file():
             flash('No file part')
             return redirect(request.url)
         file = request.files['file']
+        call_mode = request.form['call_mode']
+        core_uuid = request.form['core_uuid']
+        call_sip = request.form['call_sip']
 
         if file.filename == '':
             flash('No selected file')
             return redirect(request.url)
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(local_file_path, filename)
+        filename = "{}_{}_log".format(call_mode, call_sip)
+        file_floder_path = local_file_path + "/" + call_mode + "/" + core_uuid + "/tmp"
+        filepath = os.path.join(file_floder_path, filename)
         if os.path.isfile(filepath):
-            file.save(filepath)
+            with open(filepath, "ab") as filepath:
+                filepath.write(file.read())
         else:
-            if not local_file_path:
-                os.makedirs(local_file_path)
-            os.mknod(filepath)
+            if not os.path.exists(file_floder_path):
+                os.makedirs(file_floder_path)
             file.save(filepath)
         return '{"filename":"%s"}' % filename
     return ' '
 
 
-def call_func(func, *args, **kwargs) -> int:
+def call_func(func, *args, **kwargs):
     """
     callback
     """
-    return eval(func)(*args, **kwargs)
+    eval(func)(*args, **kwargs)
 
 
 def listen_ESL():
     '''
     ADD_SCHEDULE DEL_SCHEDULE CHANNEL_DESTROY CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP CUSTOM conference::maintenance
     '''
-
+    print("listen esl start")
     msg_dict = dict()
     con = ESLconnection(ESL_HOST, ESL_PORT, ESL_PASSWORD)
 
@@ -113,25 +120,29 @@ def put_msg(core_uuid, msg_dict):
 
 
 def log_handle():
+    print("log_handle-start")
     while 1:
         create_channel_dict_l = q.get()
         print(create_channel_dict_l)
         # create_channel_dict = json.loads(msg.serialize("json"))
-        # caller_username = create_channel_dict_l.get("Caller-Username")  # 呼叫者id
+        caller_username = create_channel_dict_l[0].get("Caller-Username")  # 呼叫者id
         # caller_destination_number = create_channel_dict_l.get("Caller-Destination-Number")  # 被呼叫者id
         core_uuid = create_channel_dict_l[0].get("Core-UUID")
         unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l]
 
-        caller()
+        # caller(core_uuid, caller_username)
         for func, remote_log_path in remote_log_path_list.items():
-            filename = remote_log_path.split("/")[-1]
+            if isinstance(remote_log_path, list):
+                filename = [file.split("/")[-1] for file in remote_log_path]
+            else:  # str
+                filename = remote_log_path.split("/")[-1]
             if remote_log_path:
-                get_server_log(remote_log_path, local_file_path)
+                get_server_log(remote_log_path)
             # log_threading = threading.Thread(target=call_func, args=(func, core_uuid, channel_call_uuid, filename))
             # log_threading.start()
             call_func(func, core_uuid, unique_id_list, filename)
-        filename = "callee"
-        callee(core_uuid, unique_id_list, filename)
+
+        callee(core_uuid, unique_id_list)
 
 
 if __name__ == '__main__':

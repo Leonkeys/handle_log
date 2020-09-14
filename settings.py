@@ -11,6 +11,11 @@ SERVER_IP = "192.168.22.40"
 USER = "root"
 PASSWORD = "nutrunck@@"
 
+# mqtt
+MQTT_USERNAME = "admin"
+MQTT_PASSWORD = "public"
+MQTT_HOST = "192.168.22.40"
+MQTT_PORT = 1883
 
 # ESL
 ESL_HOST = "192.168.22.40"
@@ -20,9 +25,9 @@ ESL_PASSWORD = "ClueCon"
 
 # log path
 REMOTE_LOG_PATH_LIST = {
-    "freeswitch": "/home/Trunck/navita/log/navita.log",
-    "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
-    "api": "",
+    # "freeswitch": "/home/Trunck/navita/log/navita.log",
+    # "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
+    "api": ["/var/log/httpd/error_log", "/var/log/httpd/access_log"],
     "mqtt": ""
 }
 LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
@@ -45,3 +50,6 @@ DB_CONNECT = "mysql+pymysql://root:123456@192.168.22.165:3306/log_handle?charset
 SQLALCHEMY_DATABASE_URI = DB_CONNECT
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SQLALCHEMY_ECHO = True
+
+# timing
+

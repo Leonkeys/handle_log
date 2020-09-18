@@ -1,7 +1,8 @@
 import os
 import json
-from threading import Thread
-from shutil import copyfile
+import time
+import redis
+from shutil import copyfile, move
 from manage import app
 from paho.mqtt import client as mqtt_client
 # from sqlalchemy import create_engine
@@ -9,7 +10,13 @@ from paho.mqtt import client as mqtt_client
 from .common import common_log_analyse as com
 
 # DB_CONNECT = app.config['DB_CONNECT']
+redis_host = app.config["REDIS_HOST"]
+redis_port = app.config["REDIS_PORT"]
+server_ip = app.config["SERVER_IP"]
+server_user = app.config["USER"]
+server_password = app.config["PASSWORD"]
 caller_log_path = app.config["CALLER_LOG_PATH"]
+callee_log_path = app.config["CALLEE_LOG_PATH"]
 LOCAL_FILE_PATH = app.config['LOCAL_FILE_PATH']
 show_log_path = app.config["SHOW_LOG_PATH"]
 mqtt_username = app.config["MQTT_USERNAME"]
@@ -18,7 +25,7 @@ mqtt_host = app.config["MQTT_HOST"]
 mqtt_port = app.config["MQTT_PORT"]
 # engine = create_engine(DB_CONNECT)
 # Session = sessionmaker(bind=engine)
-
+redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
 log_result = {
     "caller": {
         "log_valid": "1",
@@ -33,7 +40,7 @@ log_result = {
         "call_type": [None, None, None],
         "state": None,
         "err_msg": None,
-        "build_id": "151123456",
+        "build_id": None,
         "delay_time": None
     },
     "dispatcher": {
@@ -72,20 +79,29 @@ log_result = {
 
 
 def caller(core_uuid, caller_username):
-    Thread(target=public_msg, args=(core_uuid, caller_username)).start()
+    public_msg(core_uuid, caller_username)
+    # Thread(target=public_msg, args=(core_uuid, caller_username)).start()
     caller_log_file_path = caller_log_path + core_uuid + "/caller_{}_log".format(caller_username)
     caller_log_tmp_file_path = caller_log_path + core_uuid + "/tmp/caller_{}_log".format(caller_username)
     msg = check_file(caller_log_tmp_file_path)
-    if not msg:
+    if msg:
         caller_log = log_result.get("caller")
         caller_log["err_msg"] = msg
         return write_node(log_result.get('caller'), "caller", [])
     log_list = list()
-    com.analyse_main(log_result, caller_log_tmp_file_path)
-    with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file_path:
-        for line_b in caller_log_tmp_file_path:
+    # com.analyse_main(log_result, caller_log_tmp_file_path)
+    start_line_str, start_bytes_str = _get_start_sign(caller_username)
+    temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
+    start_line = int(start_line_str)
+    start_bytes = int(start_bytes_str)
+    start_bytes += temp_file_bytes
+    with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
+        for line_b in caller_log_tmp_file:
             if line_b:
                 log_list.append(line_b)
+                start_line += 1
+
+    _set_start_sign(caller_username, start_line, start_bytes)
     write_node(log_result.get("caller"), "caller",  log_list)
     call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
 
@@ -108,14 +124,11 @@ def freeswitch(core_uuid, unique_id_list, filename):
                 if line_b:
                     line_str = str(line_b, encoding="utf-8")
                     if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
-
-                        # print(line_str)
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     com.analyse_main(log_result, local_log)
     mode = "freeswitch"
     print(log_result)
-    # log_result.get('navita').get('call_type')[0] = "audiogroup"
     write_node(log_result.get('navita'), mode, log_list)
 
 
@@ -138,7 +151,6 @@ def dispatcher(core_uuid, unique_id_list, filename):
                 if line_b:
                     # line_str = str(line_b, encoding="utf-8")
                     # if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
-                    # print(line_str)
                     log_list.append(line_b)
                     new_local_file.write(line_b)
     com.analyse_main(log_result, local_log)
@@ -146,37 +158,29 @@ def dispatcher(core_uuid, unique_id_list, filename):
     write_node(log_result.get("dispatcher"), mode, log_list)
 
 
-def api(core_uuid, unique_id_list, filename_list):
+def api(core_uuid, unique_id_list, filename):
     """
     api日志分析：欣欣接口调用数据库的日志分析
     """
     log_list = list()
     if not unique_id_list:
         return
-    if isinstance(filename_list, list):
-        for filename in filename_list:
-            old_local_file = LOCAL_FILE_PATH + "/" + filename
-            new_local_log = LOCAL_FILE_PATH + "/api/" + core_uuid
-            if not os.path.exists(LOCAL_FILE_PATH + "/api"):
-                os.makedirs(LOCAL_FILE_PATH + "/api")
+    old_local_file = LOCAL_FILE_PATH + "/" + filename
+    new_local_log = LOCAL_FILE_PATH + "/api/" + core_uuid
+    if not os.path.exists(LOCAL_FILE_PATH + "/api"):
+        os.makedirs(LOCAL_FILE_PATH + "/api")
 
-            with open(old_local_file, "rb") as old_local_file:
-                with open(new_local_log, "wb") as new_local_file:
-                    for line_b in old_local_file:
-                        if line_b:
-                            line_str = str(line_b, encoding="utf-8")
-                            if line_str:
-                                log_list.append(line_b)
-                                new_local_file.write(line_b)
-            com.analyse_main(log_result, new_local_log)
-            log_list = [
-                b"api\n",
-                b"aaaaaaaaaaaaaaaaaaaaa\n",
-                b"ppppppppppppppppppppp\n",
-                b"iiiiiiiiiiiiiiiiiiiii\n"
-            ]
-            mode = "api"
-            write_node(log_result.get("api"), mode, log_list)
+    with open(old_local_file, "rb") as old_local_file:
+        with open(new_local_log, "wb") as new_local_file:
+            for line_b in old_local_file:
+                if line_b:
+                    line_str = str(line_b, encoding="utf-8")
+                    if line_str:
+                        log_list.append(line_b)
+                        new_local_file.write(line_b)
+    # com.analyse_main(log_result, new_local_log)
+    mode = "api"
+    write_node(log_result.get("api"), mode, log_list)
 
 
 def mqtt(core_uuid, unique_id_list, filename):
@@ -184,27 +188,48 @@ def mqtt(core_uuid, unique_id_list, filename):
     mqtt日志分析
     mqtt日志分析指mqtt消息通道收到的消息的分析不是本身服务运行状态分析
     """
+    log_list = list()
+    if not unique_id_list:
+        return
+
+    local_file = LOCAL_FILE_PATH + "/" + filename
+    local_log = LOCAL_FILE_PATH + "/mqtt/" + core_uuid
+    if not os.path.exists(LOCAL_FILE_PATH + "/mqtt"):
+        os.makedirs(LOCAL_FILE_PATH + "/mqtt")
+    move(local_file, local_log)
+    with open(local_log, "rb") as local_log_obj:
+        for line in local_log_obj:
+            log_list.append(line)
+    # com.analyse_main(log_result, local_log)
     mode = "mqtt"
-    log_list = [
-        b"mqtt\n",
-        b"qqqqqqqqqqqqqqqqqqqqqqq\n",
-        b"wwwwwwwwwwwwwwwwwwwwwwwww\n",
-        b"eeeeeeeeeeeeeeeeeeeeeeeeeee\n",
-        b"rrrrrrrrrrrrrrrrrrrrrrrrrrrr\n"
-    ]
     write_node(log_result.get("mqtt"), mode, log_list)
 
 
-def callee(core_uuid, unique_id_list):
-    mode = "callee"
-    log_list = [
-        b"callee\n"
-        b"qqqqqqqqqqqqqqqqqqqqqqq\n",
-        b"wwwwwwwwwwwwwwwwwwwwwwwww\n",
-        b"eeeeeeeeeeeeeeeeeeeeeeeeeee\n",
-        b"rrrrrrrrrrrrrrrrrrrrrrrrrrrr\n"
-    ]
-    write_node(log_result.get("callee"), mode, log_list)
+def callee(core_uuid, callee_username):
+    public_msg(core_uuid, callee_username)
+    callee_log_file_path = callee_log_path + core_uuid + "/callee_{}_log".format(callee_username)
+    callee_log_tmp_file_path = callee_log_path + core_uuid + "/tmp/callee_{}_log".format(callee_username)
+    msg = check_file(callee_log_tmp_file_path)
+    if msg:
+        callee_log = log_result.get("callee")
+        callee_log["err_msg"] = msg
+        return write_node(log_result.get('callee'), "callee", [])
+    # com.analyse_main(log_result, callee_log_tmp_file_path)
+    start_line_str, start_bytes_str = _get_start_sign(callee_username)
+    temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
+    start_line = int(start_line_str)
+    start_bytes = int(start_bytes_str)
+    start_bytes += temp_file_bytes
+    log_list = list()
+    with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
+        for line_b in callee_log_tmp_file:
+            if line_b:
+                log_list.append(line_b)
+                start_line += 1
+
+    _set_start_sign(callee_username, start_line, start_bytes)
+    write_node(log_result.get("callee"), "callee",  log_list)
+    call_log_backup(callee_log_file_path, callee_log_tmp_file_path)
 
 
 def write_node(handle_msg, mode, log_list):
@@ -327,17 +352,18 @@ def public_msg(core_uuid, caller_username):
     client = mqtt_client.Client()
     client.connect(host=mqtt_host, port=mqtt_port, keepalive=600)
     client.username_pw_set(mqtt_username, mqtt_password)
-    caller_log_file_path = caller_log_path + core_uuid + "/caller_{}_log".format(caller_username)
-    lines = 0
-    if os.path.exists(caller_log_file_path):
-        lines = get_line(caller_log_file_path)
+
+    start_line, start_bytes = _get_start_sign(caller_username)
     msg = {
         "offset": {
-            "start_line": lines,
+            "start_line": start_line,
+            "start_bytes": start_bytes
         },
+        "url": "http://{}:{}/log/upload".format("192.168.22.194", "8004")
     }
     msg_str = json.dumps(msg)
-    client.publish("/log_analyse/{}".format(caller_username), msg_str, 1)
+    print("public payload:", msg_str)
+    client.publish("/5476752146/log_analyse/{}".format(caller_username), msg_str, 1)
 
 
 def check_file(call_log_path):
@@ -347,25 +373,49 @@ def check_file(call_log_path):
     for i in range(10):
         if os.path.exists(call_log_path):
             return
+        time.sleep(1)
     return "terminal log upload failed"
 
 
+def _get_start_sign(call_name):
+    start_line = redis_client.hget(name=call_name, key="start_line")
+    start_bytes = redis_client.hget(name=call_name, key="start_bytes")
+    if not start_line or not start_bytes:
+        return 0, 0
+    return start_line, start_bytes
+
+
+def _set_start_sign(call_name, start_line, start_bytes):
+    redis_client.hset(name=call_name, key="start_line", value=start_line)
+    redis_client.hset(name=call_name, key="start_bytes", value=start_bytes)
+
+
 def call_log_backup(call_log_file_path, call_log_tmp_file_path):
-    with open(call_log_file_path, "ab") as call_log_file_path:
-        call_log_file_path.write(call_log_tmp_file_path)
-    os.remove(call_log_tmp_file_path)
+    # tem_file_list = list()
+    # with open(call_log_tmp_file_path, 'rb') as call_log_tmp_file:
+    #     for line in call_log_tmp_file:
+    #         tem_file_list.append(line)
+    # with open(call_log_file_path, "ab") as call_log_file_path:
+    #     for lines in tem_file_list:
+    #         call_log_file_path.write(lines)
+    file_path = call_log_file_path.split("/")[0]
+    if os.path.exists(file_path):
+        os.removedirs(call_log_tmp_file_path)
 
 
-def get_line(call_log_file_path):
-    count = 0
-    with open(call_log_file_path, "r") as call_log_file_path:
-        buffer = call_log_file_path.read(8*1024*1024)
-        if not buffer:
-            return count
-        count += buffer.count("\n")
+def get_mqtt_log_path(old_path):
+    local_path = LOCAL_FILE_PATH + "/mqtt/"
+    local_path_file = local_path + "TruncMQTT_log_dir"
+    if not os.path.exists(local_path_file):
 
+        info = os.system("sshpass -p {password} scp {user}@{ip}:{remote_path} {local_path}/".format(
+            password=server_password, user=server_user, ip=server_ip, remote_path=old_path, local_path=local_path))
+        file_name = old_path.split("/")[-1]
+        local_path_file = local_path + file_name
+    remote_path_list = list()
+    with open(local_path_file, "r") as local_file:
+        for line in local_file:
+            line = line.split("\n")[0]
+            remote_path_list.append(line)
 
-def clean_line():
-    import time
-    stamp = time.time()
-    print('clean line%s' % stamp)
+    return remote_path_list[0]

@@ -5,7 +5,6 @@ HOST = "0.0.0.0"
 PORT = "8004"
 DEBUG = True
 
-
 # server
 SERVER_IP = "192.168.22.40"
 USER = "root"
@@ -17,18 +16,22 @@ MQTT_PASSWORD = "public"
 MQTT_HOST = "192.168.22.40"
 MQTT_PORT = 1883
 
+# redis
+REDIS_HOST = "192.168.22.194"
+REDIS_PORT = "6379"
+
+
 # ESL
 ESL_HOST = "192.168.22.40"
 ESL_PORT = "8021"
 ESL_PASSWORD = "ClueCon"
 
-
 # log path
 REMOTE_LOG_PATH_LIST = {
     # "freeswitch": "/home/Trunck/navita/log/navita.log",
     # "dispatcher": "/home/Trunck/navita/log/dispatcher.log",
-    "api": ["/var/log/httpd/error_log", "/var/log/httpd/access_log"],
-    "mqtt": ""
+    "api": "/home/Trunck/EUHTRUNCK/log/apiServer/log/",
+    # "mqtt": "/home/Trunck/TruncMQTT/TruncMQTT_log_dir"
 }
 LOCAL_FILE_PATH = "/home/nufront/桌面/local_log"
 CALLER_LOG_PATH = "/home/nufront/桌面/local_log/caller/"

@@ -10,7 +10,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static/countdo
 # 解决跨域
 CORS(app, supports_credentials=True)
 
-# app.config['SECRET_KEY'] = '123456'
+app.config['SECRET_KEY'] = '123456'
 
 app.register_blueprint(websocket, url_prefix="/websocket")
 app.register_blueprint(log, url_prefix="/log")

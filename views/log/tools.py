@@ -15,9 +15,7 @@ redis_port = app.config["REDIS_PORT"]
 server_ip = app.config["SERVER_IP"]
 server_user = app.config["USER"]
 server_password = app.config["PASSWORD"]
-caller_log_path = app.config["CALLER_LOG_PATH"]
-callee_log_path = app.config["CALLEE_LOG_PATH"]
-LOCAL_FILE_PATH = app.config['LOCAL_FILE_PATH']
+local_file_path = app.config['LOCAL_FILE_PATH']
 show_log_path = app.config["SHOW_LOG_PATH"]
 mqtt_username = app.config["MQTT_USERNAME"]
 mqtt_password = app.config["MQTT_PASSWORD"]
@@ -25,9 +23,9 @@ mqtt_host = app.config["MQTT_HOST"]
 mqtt_port = app.config["MQTT_PORT"]
 # engine = create_engine(DB_CONNECT)
 # Session = sessionmaker(bind=engine)
-redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
 log_result = {
     "caller": {
+        "call_id": None,
         "log_valid": "1",
         "call_type": ['audiosingle', '3509', '4500'],
         "state": "1",
@@ -68,6 +66,7 @@ log_result = {
         "delay_time": 27017
     },
     "callee": {
+        "call_id": "",
         "log_valid": "1",
         "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
@@ -78,17 +77,18 @@ log_result = {
     "analyse_error": None}
 
 
-def caller(core_uuid, caller_username):
+def caller(core_uuid, caller_username, variable_sip_call_id):
     public_msg(core_uuid, caller_username)
     # Thread(target=public_msg, args=(core_uuid, caller_username)).start()
-    caller_log_file_path = caller_log_path + core_uuid + "/caller_{}_log".format(caller_username)
-    caller_log_tmp_file_path = caller_log_path + core_uuid + "/tmp/caller_{}_log".format(caller_username)
+    caller_log_file_path = local_file_path + core_uuid + "/{}_log".format(caller_username)
+    caller_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(caller_username)
     msg = check_file(caller_log_tmp_file_path)
     if msg:
         caller_log = log_result.get("caller")
         caller_log["err_msg"] = msg
         return write_node(log_result.get('caller'), "caller", [])
     log_list = list()
+    log_result.get("caller")["call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, caller_log_tmp_file_path)
     start_line_str, start_bytes_str = _get_start_sign(caller_username)
     temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
@@ -103,7 +103,7 @@ def caller(core_uuid, caller_username):
 
     _set_start_sign(caller_username, start_line, start_bytes)
     write_node(log_result.get("caller"), "caller",  log_list)
-    call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
+    # call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
 
 
 def freeswitch(core_uuid, unique_id_list, filename):
@@ -113,10 +113,10 @@ def freeswitch(core_uuid, unique_id_list, filename):
     log_list = list()
     if not unique_id_list:
         return
-    local_file = LOCAL_FILE_PATH + "/" + filename
-    local_log = LOCAL_FILE_PATH + "/freeswitch/" + core_uuid
-    if not os.path.exists(LOCAL_FILE_PATH + "/freeswitch"):
-        os.makedirs(LOCAL_FILE_PATH + "/freeswitch")
+    local_file = local_file_path + "/" + filename
+    local_log = local_file_path + "/freeswitch/" + core_uuid
+    if not os.path.exists(local_file_path + "/freeswitch"):
+        os.makedirs(local_file_path + "/freeswitch")
     with open(local_file, "rb") as old_local_file:
 
         with open(local_log, "wb") as new_local_file:
@@ -126,7 +126,7 @@ def freeswitch(core_uuid, unique_id_list, filename):
                     if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
-    com.analyse_main(log_result, local_log)
+    # com.analyse_main(log_result, local_log)
     mode = "freeswitch"
     print(log_result)
     write_node(log_result.get('navita'), mode, log_list)
@@ -140,10 +140,10 @@ def dispatcher(core_uuid, unique_id_list, filename):
     log_list = list()
     if not unique_id_list:
         return
-    local_file = LOCAL_FILE_PATH + "/" + filename
-    local_log = LOCAL_FILE_PATH + "/dispatcher/" + core_uuid
-    if not os.path.exists(LOCAL_FILE_PATH + "/dispatcher"):
-        os.makedirs(LOCAL_FILE_PATH + "/dispatcher")
+    local_file = local_file_path + "/" + filename
+    local_log = local_file_path + "/dispatcher/" + core_uuid
+    if not os.path.exists(local_file_path + "/dispatcher"):
+        os.makedirs(local_file_path + "/dispatcher")
 
     with open(local_file, "rb") as old_local_file:
         with open(local_log, "wb") as new_local_file:
@@ -165,10 +165,10 @@ def api(core_uuid, unique_id_list, filename):
     log_list = list()
     if not unique_id_list:
         return
-    old_local_file = LOCAL_FILE_PATH + "/" + filename
-    new_local_log = LOCAL_FILE_PATH + "/api/" + core_uuid
-    if not os.path.exists(LOCAL_FILE_PATH + "/api"):
-        os.makedirs(LOCAL_FILE_PATH + "/api")
+    old_local_file = local_file_path + "/" + filename
+    new_local_log = local_file_path + "/api/" + core_uuid
+    if not os.path.exists(local_file_path + "/api"):
+        os.makedirs(local_file_path + "/api")
 
     with open(old_local_file, "rb") as old_local_file:
         with open(new_local_log, "wb") as new_local_file:
@@ -192,10 +192,10 @@ def mqtt(core_uuid, unique_id_list, filename):
     if not unique_id_list:
         return
 
-    local_file = LOCAL_FILE_PATH + "/" + filename
-    local_log = LOCAL_FILE_PATH + "/mqtt/" + core_uuid
-    if not os.path.exists(LOCAL_FILE_PATH + "/mqtt"):
-        os.makedirs(LOCAL_FILE_PATH + "/mqtt")
+    local_file = local_file_path + "/" + filename
+    local_log = local_file_path + "/mqtt/" + core_uuid
+    if not os.path.exists(local_file_path + "/mqtt"):
+        os.makedirs(local_file_path + "/mqtt")
     move(local_file, local_log)
     with open(local_log, "rb") as local_log_obj:
         for line in local_log_obj:
@@ -205,15 +205,16 @@ def mqtt(core_uuid, unique_id_list, filename):
     write_node(log_result.get("mqtt"), mode, log_list)
 
 
-def callee(core_uuid, callee_username):
+def callee(core_uuid, callee_username, variable_sip_call_id):
     public_msg(core_uuid, callee_username)
-    callee_log_file_path = callee_log_path + core_uuid + "/callee_{}_log".format(callee_username)
-    callee_log_tmp_file_path = callee_log_path + core_uuid + "/tmp/callee_{}_log".format(callee_username)
+    callee_log_file_path = local_file_path + core_uuid + "/callee_{}_log".format(callee_username)
+    callee_log_tmp_file_path = local_file_path + core_uuid + "/tmp/callee_{}_log".format(callee_username)
     msg = check_file(callee_log_tmp_file_path)
     if msg:
         callee_log = log_result.get("callee")
         callee_log["err_msg"] = msg
         return write_node(log_result.get('callee'), "callee", [])
+    log_result.get("callee")["variable_sip_call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, callee_log_tmp_file_path)
     start_line_str, start_bytes_str = _get_start_sign(callee_username)
     temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
@@ -356,8 +357,8 @@ def public_msg(core_uuid, caller_username):
     start_line, start_bytes = _get_start_sign(caller_username)
     msg = {
         "offset": {
-            "start_line": start_line,
-            "start_bytes": start_bytes
+            "start_line": str(start_line),
+            "start_bytes": str(start_bytes)
         },
         "url": "http://{}:{}/log/upload".format("192.168.22.194", "8004")
     }
@@ -378,16 +379,20 @@ def check_file(call_log_path):
 
 
 def _get_start_sign(call_name):
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
     start_line = redis_client.hget(name=call_name, key="start_line")
     start_bytes = redis_client.hget(name=call_name, key="start_bytes")
+    redis_client.close()
     if not start_line or not start_bytes:
         return 0, 0
     return start_line, start_bytes
 
 
 def _set_start_sign(call_name, start_line, start_bytes):
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
     redis_client.hset(name=call_name, key="start_line", value=start_line)
     redis_client.hset(name=call_name, key="start_bytes", value=start_bytes)
+    redis_client.close()
 
 
 def call_log_backup(call_log_file_path, call_log_tmp_file_path):
@@ -404,7 +409,7 @@ def call_log_backup(call_log_file_path, call_log_tmp_file_path):
 
 
 def get_mqtt_log_path(old_path):
-    local_path = LOCAL_FILE_PATH + "/mqtt/"
+    local_path = local_file_path + "/mqtt/"
     local_path_file = local_path + "TruncMQTT_log_dir"
     if not os.path.exists(local_path_file):
 
@@ -419,3 +424,17 @@ def get_mqtt_log_path(old_path):
             remote_path_list.append(line)
 
     return remote_path_list[0]
+
+
+def get_sip_uuid(esl_list):
+    caller_sip_call_id = None
+    callee_sip_call_id = None
+    for esl in esl_list:
+        if esl.get("Event-Name") == "CHANNEL_CREATE" and esl.get("variable_sip_call_id"):
+            caller_sip_call_id = esl.get("variable_sip_call_id")
+
+        if esl.get("Event-Name") == "CHANNEL_PROGRESS" and esl.get("variable_sip_call_id"):
+            callee_sip_call_id = esl.get("variable_sip_call_id")
+    print(caller_sip_call_id, callee_sip_call_id)
+    return caller_sip_call_id, callee_sip_call_id
+

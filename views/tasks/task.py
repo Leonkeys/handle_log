@@ -3,12 +3,20 @@ import redis
 from settings import MQTT_HOST, MQTT_PORT, MQTT_PASSWORD, MQTT_USERNAME, REDIS_HOST, REDIS_PORT
 from paho.mqtt import client as mqtt_client
 from apscheduler.schedulers.background import BackgroundScheduler
+from views.tasks.offline_logfile_rsync import rsync_remote_log
+
 job_list = [
-    # {
-        # "func": "clean_line",
-        # "trigger": "interval",
-        # "seconds": 20
-    # }
+    {
+        "func": "clean_line",
+        "trigger": "interval",
+        "seconds": 20
+    },
+
+    {
+        "func": "rsync_remote_log",
+        "trigger": "interval",
+        "seconds": 22
+    }
 ]
 
 
@@ -41,7 +49,5 @@ def core():
     scheduler.start()
 
 
-if __name__ == '__main__':
-    clean_line()
-
+# if __name__ == '__main__':
     # Thread(target=core).start()

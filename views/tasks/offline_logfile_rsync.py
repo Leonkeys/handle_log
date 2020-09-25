@@ -1,8 +1,9 @@
 import paramiko
 import subprocess
-import os
+import os, sys, stat
 import logging
 import time
+#from settings import  SERVER_IP
 
 logging.basicConfig(level=logging.DEBUG,
         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -11,9 +12,11 @@ logging.basicConfig(level=logging.DEBUG,
         filemode='a')
 logging.info("###################################################################")
 
-hostname = '192.168.22.40'
+hostname = '192.168.22.90'
+#hostname = SERVER_IP
+print("offline host: ", hostname)
 username = 'root'
-password = 'nutrunck@@'
+password = 'nuard@@'
 port = 22
 locate_lists = ['/tmp/locate.src', '/tmp/locate.dst', '/tmp/locate.diff']
 dict_path = {'locate_lists': locate_lists, 'dst_db': '/tmp/locate.db',
@@ -33,12 +36,19 @@ ftp_path = {
         'ftp_emon_path' : dict_path['local_ftp_path'] + 'eMon',
         'ftp_api_path' : dict_path['local_ftp_path'] + 'api_service',
         'ftp_fdfs_path' : dict_path['local_ftp_path'] + 'fdfs',
+        'ftp_softphone_path' : dict_path['local_ftp_path'] + 'softphone',
         }
 
 def create_ftp_path():
+    if not os.path.exists(dict_path['local_ftp_path']):
+        os.mkdir(dict_path['local_ftp_path'])
+    with open(dict_path['passwd_file'], mode='w', encoding='utf-8') as f:
+        f.write(password)
+    os.chmod(dict_path['passwd_file'], stat.S_IRUSR|stat.S_IWUSR)
     for path in ftp_path.values():
         if not os.path.exists(path):
             os.mkdir(path)
+
 
 
 def del_locate_file():
@@ -56,12 +66,21 @@ def get_dst_list():
     stdin, stdout, stderr = s.exec_command(cmd_create)
     status = stdout.channel.recv_exit_status()
     #print("create cmd status:", status)
+    error = (stderr.read().decode('utf-8'))
     logging.info("create cmd:%s status: %s", cmd_create, status)
+    if(status == 1):
+        print("create cmd error:", error)
+        logging.error("create cmd error: %s", error)
+        return ""
 
     cmd_get_mqtt_path = "cat `sudo locate -d %s --regex 'TruncMQTT_log_dir'`"%(dict_path['dst_db'])
     stdin, stdout, stderr = s.exec_command(cmd_get_mqtt_path)
+    error = (stderr.read().decode('utf-8'))
     mqtt_path = stdout.read().decode('utf-8')
     status = stdout.channel.recv_exit_status()
+    if(status == 1):
+        logging.error("create cmd error: %s", error)
+        return ""
     logging.info("get remote mqtt log_path cmd:%s status: %s", cmd_get_mqtt_path, status)
     #print("get cmd status:", status)
     
@@ -100,6 +119,15 @@ def cmp_diff():
             diff.writelines(j)
     diff.close()
 
+def rsync_direct():
+    dict_device = {"nuf_edc/": ftp_path['ftp_edc_path'], "nuf_eue/":ftp_path['ftp_eue_path'], "nuf_emon/":ftp_path['ftp_emon_path'],"nuf_api/":ftp_path['ftp_api_path'],"nuf_fdfs/":ftp_path['ftp_fdfs_path'],"nuf_softphone/":ftp_path['ftp_softphone_path']}
+    for key,values in dict_device.items():
+        cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
+                hostname, key, dict_path['passwd_file'], values)
+        logging.info(cmd)
+        subprocess.getstatusoutput(cmd)
+
+
 def rsync_file(mqtt_path):
     f = open(dict_path['locate_lists'][2], 'r')
     for line in f.readlines():
@@ -112,13 +140,13 @@ def rsync_file(mqtt_path):
                     hostname, "nuf_navita/" + line.strip('\n')[-14:], dict_path['passwd_file'], ftp_path['ftp_dis_path'])
         if 'eDC' in line:
             cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
-                    hostname, "nuf_edc/" + line.strip('\n')[34:], dict_path['passwd_file'], ftp_path['ftp_edc_path'])
+                    hostname, "nuf_edc/", dict_path['passwd_file'], ftp_path['ftp_edc_path'])
         if 'eUE' in line:
             cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
-                    hostname, "nuf_eue/" + line.strip('\n')[34:], dict_path['passwd_file'], ftp_path['ftp_eue_path'])
+                    hostname, "nuf_eue/", dict_path['passwd_file'], ftp_path['ftp_eue_path'])
         if 'eMon' in line:
             cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
-                    hostname, "nuf_emon/" + line.strip('\n')[35:], dict_path['passwd_file'], ftp_path['ftp_emon_path'])
+                    hostname, "nuf_emon/", dict_path['passwd_file'], ftp_path['ftp_emon_path'])
         if 'apiServer' in line:
             cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
                     hostname, "nuf_api/", dict_path['passwd_file'], ftp_path['ftp_api_path'])
@@ -131,7 +159,10 @@ def rsync_file(mqtt_path):
                     hostname, "nuf_apache/", dict_path['passwd_file'], ftp_path['ftp_apache_path'])
         if 'fdfs' in line:
             cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
-                    hostname, "nuf_fdfs/" + line.strip('\n')[18:], dict_path['passwd_file'], ftp_path['ftp_fdfs_path'])
+                    hostname, "nuf_fdfs/", dict_path['passwd_file'], ftp_path['ftp_fdfs_path'])
+        if 'softphone' in line:
+            cmd = 'sudo rsync -aRvz  root@%s::%s --password-file=%s %s' % (
+                    hostname, "nuf_softphone/", dict_path['passwd_file'], ftp_path['ftp_softphone_path'])
         logging.info(cmd)
         subprocess.getstatusoutput(cmd)
         #todo: navita_stream  ruleengine
@@ -140,12 +171,16 @@ def rsync_file(mqtt_path):
 
 def rsync_remote_log():
 #if __name__ ==  '__main__':
+    print("rsync start: ", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    start_time = time.time()
     create_ftp_path()
     del_locate_file()
     mqtt_path = get_dst_list()
     get_src_list()
     cmp_diff()
     rsync_file(mqtt_path)
+    rsync_direct()
     del_locate_file()
-    print("rsync success: ", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-    logging.info("rsync success: %s", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    end_time = time.time()
+    print("rsync success: ", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), end_time - start_time)
+    logging.info("rsync success: %s   delay_time: %s", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), end_time - start_time)

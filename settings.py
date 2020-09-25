@@ -1,7 +1,7 @@
 # setting
 
 # run setting
-HOST = "0.0.0.0"
+HOST = "192.168.22.194"
 PORT = "8004"
 DEBUG = True
 

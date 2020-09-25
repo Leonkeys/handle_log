@@ -1,6 +1,6 @@
 import json
 import redis
-from settings import MQTT_HOST, MQTT_PORT, MQTT_PASSWORD, MQTT_USERNAME, REDIS_HOST, REDIS_PORT
+from settings import MQTT_HOST, MQTT_PORT, MQTT_PASSWORD, MQTT_USERNAME, REDIS_HOST, REDIS_PORT, HOST,PORT
 from paho.mqtt import client as mqtt_client
 from apscheduler.schedulers.background import BackgroundScheduler
 from views.tasks.offline_logfile_rsync import rsync_remote_log
@@ -26,7 +26,7 @@ def clean_line():
     client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     payload = {
         "option": "clean_offset",
-        "url": "http://{}:{}/log/clean".format("192.168.22.194", "8004")
+        "url": "http://{}:{}/log/clean".format(HOST, PORT)
     }
     payload_str = json.dumps(payload)
     # print("task public topic: clean_offset, payload:{}".format(payload_str))

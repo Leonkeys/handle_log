@@ -12,6 +12,8 @@ from paho.mqtt import client as mqtt_client
 from .common import common_log_analyse as com
 
 # DB_CONNECT = app.config['DB_CONNECT']
+host = app.config["HOST"]
+port = app.config["PORT"]
 redis_host = app.config["REDIS_HOST"]
 redis_port = app.config["REDIS_PORT"]
 server_ip = app.config["SERVER_IP"]
@@ -397,7 +399,7 @@ def public_msg(core_uuid, call_username):
                 "start_line": int(start_line),
                 "start_bytes": int(start_bytes)
             },
-            "url": "http://{}:{}/log/upload".format("192.168.22.194", "8004")
+            "url": "http://{}:{}/log/upload".format(host, port)
         }
         msg_str = json.dumps(msg)
         print("public payload:", msg_str)

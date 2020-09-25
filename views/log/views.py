@@ -1,14 +1,16 @@
 import os
 import logging
+import redis
 import threading
 import queue
 from . import log
-from flask import request, redirect
+from flask import request, redirect, make_response
 from .tools import *
 import json
 from ESL import *
 from manage import app
-q = queue.Queue(20)
+start_call_queue = queue.Queue(20)
+end_call_queue = queue.Queue(20)
 redis_host = app.config['REDIS_HOST']
 redis_port = app.config["REDIS_PORT"]
 ESL_HOST = app.config['ESL_HOST']
@@ -17,43 +19,17 @@ ESL_PASSWORD = app.config['ESL_PASSWORD']
 local_file_path = app.config["LOCAL_FILE_PATH"]
 remote_log_path_list = app.config['REMOTE_LOG_PATH_LIST']
 
-
-def get_server_log(remote_path, local_file=None):
-    """
-    copy server running log
-    request:
-        remote_path  服务器端日志路径，根据所传日志动态传入
-        local_path   本地日志存储路径
-
-    """
-    try:
-        password = app.config['PASSWORD']
-        user = app.config['USER']
-        ip = app.config['SERVER_IP']
-        local_path = local_file if local_file else local_file_path
-        if isinstance(remote_path, list):
-            for path in remote_path:
-                info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
-                    password=password, user=user, ip=ip, remote_path=path, local_path=local_path))
-        elif isinstance(remote_path, str):
-
-            info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
-                password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
-        # return {"a": info}
-    except Exception as e:
-        logging.warning(e)
-        print("server log is not found:{}".format(remote_path))
+redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
 
 
-@log.route("/upload", methods=["GET", "POST"])
+@log.route("/upload", methods=["POST"])
 def upload_file():
     """
     android and windows upload file
     request:
         file
-        call_mode  呼叫类型 callee||caller
-        core_uuid  标识呼叫的uuid
         call_sip
+        clean_offset: <boolean> emq中传递的偏移值与终端对应不上的时候，终端主动上传该参数为true，
     :return:
     """
     if request.method == 'POST':
@@ -63,7 +39,9 @@ def upload_file():
             return redirect(request.url)
         file = request.files.get('file')
         call_sip = request.form.get('call_sip')
-
+        clean_offset = request.form.get("clean_offset", "False")
+        if clean_offset == "true":
+            redis_client.hdel(call_sip, "start_line", "start_bytes")
         if file.filename == '':
             print('No selected file')
             return redirect(request.url)
@@ -83,11 +61,21 @@ def upload_file():
     return ' '
 
 
-def call_func(func, *args, **kwargs):
+@log.route("/clean", methods=["POST"])
+def clean_offset():
     """
-    callback
+    the function is clean redis one sip sign to 0, 0.
+    emq: topic: /5475762146/clean_offset
+        payload<json>:{"option":"clean_offset","url":"http://ip:port/log/clean"}
+    request <form-data>:
+        call_sip:<用户sip号>
     """
-    eval(func)(*args, **kwargs)
+    if request.method.upper() == "POST":
+        call_sip = request.form.get("call_sip")
+        redis_client.hdel(call_sip, "start_line", "start_bytes")
+        resp = make_response({"state": "is_success"})
+        resp.status = "200"
+        return resp
 
 
 def listen_ESL():
@@ -95,7 +83,8 @@ def listen_ESL():
     ADD_SCHEDULE DEL_SCHEDULE CHANNEL_DESTROY CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP CUSTOM conference::maintenance
     '''
     print("listen esl start")
-    msg_dict = dict()
+    start_msg_dict = dict()
+    end_msg_dict = dict()
     con = ESLconnection(ESL_HOST, ESL_PORT, ESL_PASSWORD)
 
     if con.connected():
@@ -107,28 +96,41 @@ def listen_ESL():
                 # print(msg.serialize("json"))
                 create_channel_dict = json.loads(msg.serialize("json"))
                 core_uuid = create_channel_dict.get("Core-UUID")
-                if core_uuid not in msg_dict:
-                    msg_dict[core_uuid] = [create_channel_dict]
-                    threading.Timer(2, put_msg, [core_uuid, msg_dict]).start()
+                event_name = create_channel_dict.get("Event-Name")
+                if core_uuid not in start_msg_dict and event_name in ["CHANNEL_CREATE", "CHANNEL_PROGRESS"]:
+                    start_msg_dict[core_uuid] = [create_channel_dict]
+                    threading.Timer(2, put_msg, [core_uuid, start_msg_dict]).start()
+                elif core_uuid not in end_msg_dict and event_name in ["CHANNEL_HANGUP"]:
+                    end_msg_dict[core_uuid] = [create_channel_dict]
+                    threading.Timer(2,  put_msg, [core_uuid, end_msg_dict]).start()
+                elif core_uuid in start_msg_dict:
+                    start_msg_dict[core_uuid].append(create_channel_dict)
+                elif core_uuid in end_msg_dict:
+                    end_msg_dict[core_uuid].append(create_channel_dict)
 
-                elif core_uuid in msg_dict:
-                    msg_dict[core_uuid].append(create_channel_dict)
+
+def call_func(func, *args, **kwargs):
+    """
+    callback
+    """
+    eval(func)(*args, **kwargs)
 
 
 def put_msg(core_uuid, msg_dict):
-    q.put(msg_dict[core_uuid])
+    start_call_queue.put(msg_dict[core_uuid])
     del msg_dict[core_uuid]
 
 
 def log_handle():
     print("log_handle-start")
     while 1:
-        create_channel_dict_l = q.get()
+        create_channel_dict_l = start_call_queue.get()
+        # caller_username, callee_username_list = get_call_username(create_channel_dict_l)
         caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
         callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
         core_uuid = create_channel_dict_l[0].get("Core-UUID")
         caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
-        unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l]
+        unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
 
         caller(core_uuid, caller_username, caller_sip_uuid)
         for func, remote_log_path in remote_log_path_list.items():

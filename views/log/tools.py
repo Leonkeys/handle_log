@@ -1,4 +1,6 @@
 import os
+import threading
+import logging
 import json
 import time
 import redis
@@ -23,6 +25,7 @@ mqtt_host = app.config["MQTT_HOST"]
 mqtt_port = app.config["MQTT_PORT"]
 # engine = create_engine(DB_CONNECT)
 # Session = sessionmaker(bind=engine)
+lock = threading.Lock()
 log_result = {
     "caller": {
         "call_id": None,
@@ -69,12 +72,39 @@ log_result = {
         "call_id": "",
         "log_valid": "1",
         "call_type": ["audiosingle", "3509", "4500"],
-        "state": "1",
+        "state": {},
         "err_msg": None,
         "build_id": "151123456",
         "delay_time": 27017
     },
     "analyse_error": None}
+
+
+def get_server_log(remote_path, local_file=None):
+    """
+    copy server running log
+    request:
+        remote_path  服务器端日志路径，根据所传日志动态传入
+        local_path   本地日志存储路径
+
+    """
+    try:
+        password = app.config['PASSWORD']
+        user = app.config['USER']
+        ip = app.config['SERVER_IP']
+        local_path = local_file if local_file else local_file_path
+        if isinstance(remote_path, list):
+            for path in remote_path:
+                info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
+                    password=password, user=user, ip=ip, remote_path=path, local_path=local_path))
+        elif isinstance(remote_path, str):
+
+            info = os.system("sshpass -p {password} rsync {user}@{ip}:{remote_path} {local_path}/".format(
+                password=password, user=user, ip=ip, remote_path=remote_path, local_path=local_path))
+        # return {"a": info}
+    except Exception as e:
+        logging.warning(e)
+        print("server log is not found:{}".format(remote_path))
 
 
 def caller(core_uuid, caller_username, variable_sip_call_id):
@@ -92,6 +122,7 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
     # com.analyse_main(log_result, caller_log_tmp_file_path)
     start_line_str, start_bytes_str = _get_start_sign(caller_username)
     temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
+    print(temp_file_bytes)
     start_line = int(start_line_str)
     start_bytes = int(start_bytes_str)
     start_bytes += temp_file_bytes
@@ -103,7 +134,7 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
 
     _set_start_sign(caller_username, start_line, start_bytes)
     write_node(log_result.get("caller"), "caller",  log_list)
-    # call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
+    call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
 
 
 def freeswitch(core_uuid, unique_id_list, filename):
@@ -153,7 +184,7 @@ def dispatcher(core_uuid, unique_id_list, filename):
                     # if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                     log_list.append(line_b)
                     new_local_file.write(line_b)
-    com.analyse_main(log_result, local_log)
+    # com.analyse_main(log_result, local_log)
     mode = "dispatcher"
     write_node(log_result.get("dispatcher"), mode, log_list)
 
@@ -283,7 +314,6 @@ def write_conf(mode, handle_msg):
         if mode == "caller":
             build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
         conf_file_name = "start_single_video_call.conf"
-
     elif call_type[0] == "audiogroup":
         if mode == "caller":
             build_id = handle_msg.get("build_id", "-")
@@ -294,7 +324,7 @@ def write_conf(mode, handle_msg):
         conf_file_name = "start_group_video_call.conf"
     else:
         build_id = None
-        conf_file_name = None
+        conf_file_name = ""
 
     if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
         os.remove(conf_file_path + conf_file_name)
@@ -304,6 +334,8 @@ def write_conf(mode, handle_msg):
         for conf_line in conf_file_path:
             file_msg_list.append(conf_line)
         if state:
+            if isinstance(state, dict):
+                file_msg_list[mode_write_line - 1] = json.dumps(state) + "\n"
             file_msg_list[mode_write_line - 1] = state + "\n"
         if build_id:
             file_msg_list[3] = file_msg_list[15]
@@ -317,7 +349,7 @@ def write_conf(mode, handle_msg):
             conf_file_path.write(line)
 
 
-def write_log(handle_msg, log_list, mode):
+def write_log(handle_msg, log_list, mode, call_sip=None):
     """
     编辑需要展示的日志文件内容
     单呼 组呼 写日志文件
@@ -333,6 +365,10 @@ def write_log(handle_msg, log_list, mode):
     else:
         # videogroup
         mode_show_log_path = show_log_path + "start_group_video_call/" + mode + "/"
+    if mode == "callee" and call_sip:
+        mode_show_log_path = mode_show_log_path + call_sip + "/"
+    if not os.path.exists(mode_show_log_path):
+        os.makedirs(mode_show_log_path)
     if err_msg:
         err_log_file = mode_show_log_path + "err_log"
         with open(err_log_file, "w") as err_log_file:
@@ -349,29 +385,35 @@ def write_log(handle_msg, log_list, mode):
             handle_log_file.write(handle_msg_str)
 
 
-def public_msg(core_uuid, caller_username):
+def public_msg(core_uuid, call_username):
     client = mqtt_client.Client()
     client.connect(host=mqtt_host, port=mqtt_port, keepalive=600)
     client.username_pw_set(mqtt_username, mqtt_password)
 
-    start_line, start_bytes = _get_start_sign(caller_username)
-    msg = {
-        "offset": {
-            "start_line": str(start_line),
-            "start_bytes": str(start_bytes)
-        },
-        "url": "http://{}:{}/log/upload".format("192.168.22.194", "8004")
-    }
-    msg_str = json.dumps(msg)
-    print("public payload:", msg_str)
-    client.publish("/5476752146/log_analyse/{}".format(caller_username), msg_str, 1)
+    def _public_msg(sip):
+        start_line, start_bytes = _get_start_sign(sip)
+        msg = {
+            "offset": {
+                "start_line": int(start_line),
+                "start_bytes": int(start_bytes)
+            },
+            "url": "http://{}:{}/log/upload".format("192.168.22.194", "8004")
+        }
+        msg_str = json.dumps(msg)
+        print("public payload:", msg_str)
+        client.publish("/5476752146/log_analyse/{}".format(sip), msg_str, 1)
+    if isinstance(call_username, list):
+        for sip in call_username:
+            _public_msg(sip)
+    else:
+        _public_msg(call_username)
 
 
 def check_file(call_log_path):
     '''
     检查终端日志文件是否上传成功。
     '''
-    for i in range(10):
+    for i in range(5):
         if os.path.exists(call_log_path):
             return
         time.sleep(1)
@@ -438,3 +480,16 @@ def get_sip_uuid(esl_list):
     print(caller_sip_call_id, callee_sip_call_id)
     return caller_sip_call_id, callee_sip_call_id
 
+
+def get_call_username(create_channel_dict_l):
+    caller_username = None
+    callee_username_list = list()
+    for create_channel_dict in create_channel_dict_l:
+        if create_channel_dict.get("Caller-Caller-ID-Number") and create_channel_dict.get("Event-Name") == "CHANNEL_CREATE":
+            if create_channel_dict.get("Caller-Caller-ID-Number").isdigit():
+                caller_username = create_channel_dict.get("Caller-Caller-ID-Number")
+        if create_channel_dict.get("Caller-Callee-ID-Number") and create_channel_dict.get("Event-Name") == "CHANNEL_CREATE":
+            if create_channel_dict.get("Caller-Callee-ID-Number").isdigit():
+                callee_username_list.append(create_channel_dict.get("Caller-Callee-ID-Number"))
+
+    return caller_username, callee_username_list

@@ -25,13 +25,12 @@ def clean_line():
     client.connect(host=MQTT_HOST, port=MQTT_PORT, keepalive=600)
     client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     payload = {
-        "option": "upload",
+        "option": "clean_offset",
+        "url": "http://{}:{}/log/clean".format("192.168.22.194", "8004")
     }
     payload_str = json.dumps(payload)
-    client.publish("/5476752146/upload", payload_str, 1)
-    redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
-    redis_client.flushdb()
-    redis_client.close()
+    # print("task public topic: clean_offset, payload:{}".format(payload_str))
+    client.publish("/5476752146/clean_offset", payload_str, 1)
 
 
 def add_job(scheduler):

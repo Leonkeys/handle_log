@@ -29,7 +29,7 @@ def clean_line():
         "url": "http://{}:{}/log/clean".format(HOST, PORT)
     }
     payload_str = json.dumps(payload)
-    # print("task public topic: clean_offset, payload:{}".format(payload_str))
+    print("task public topic: clean_offset, payload:{}".format(payload_str))
     client.publish("/5476752146/clean_offset", payload_str, 1)
 
 

@@ -7,7 +7,6 @@ from views.log import log, views
 from views.tasks import task
 app = Flask(__name__, template_folder="templates", static_folder="static/countdown_files")
 
-# 解决跨域
 CORS(app, supports_credentials=True)
 
 app.config['SECRET_KEY'] = '123456'

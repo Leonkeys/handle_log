@@ -114,6 +114,7 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
     # Thread(target=public_msg, args=(core_uuid, caller_username)).start()
     caller_log_file_path = local_file_path + core_uuid + "/{}_log".format(caller_username)
     caller_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(caller_username)
+    logging.debug("caller check file is exist")
     msg = check_file(caller_log_tmp_file_path)
     if msg:
         caller_log = log_result.get("caller")
@@ -122,7 +123,9 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
     log_list = list()
     log_result.get("caller")["call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, caller_log_tmp_file_path)
+    logging.debug("get caller user start sign ")
     start_line_str, start_bytes_str = _get_start_sign(caller_username)
+    logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
     temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
     print(temp_file_bytes)
     start_line = int(start_line_str)
@@ -134,6 +137,7 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
                 log_list.append(line_b)
                 start_line += 1
 
+    logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
     _set_start_sign(caller_username, start_line, start_bytes)
     write_node(log_result.get("caller"), "caller",  log_list)
     call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
@@ -143,6 +147,7 @@ def freeswitch(core_uuid, unique_id_list, filename):
     """
     截取当前通话相关的日志&&freeswitch日志分析
     """
+    logging.debug("log handle freeswitch start")
     log_list = list()
     if not unique_id_list:
         return
@@ -170,6 +175,7 @@ def dispatcher(core_uuid, unique_id_list, filename):
     dispatcher日志分析
     """
 
+    logging.debug("log handle dispatcher start")
     log_list = list()
     if not unique_id_list:
         return
@@ -177,7 +183,7 @@ def dispatcher(core_uuid, unique_id_list, filename):
     local_log = local_file_path + "/dispatcher/" + core_uuid
     if not os.path.exists(local_file_path + "/dispatcher"):
         os.makedirs(local_file_path + "/dispatcher")
-
+    logging.debug("remote log file path:%s, local log filepath:%s." % (local_file, local_log))
     with open(local_file, "rb") as old_local_file:
         with open(local_log, "wb") as new_local_file:
             for line_b in old_local_file:
@@ -203,6 +209,7 @@ def api(core_uuid, unique_id_list, filename):
     if not os.path.exists(local_file_path + "/api"):
         os.makedirs(local_file_path + "/api")
 
+    logging.debug("remote log file path:%s, local log filepath:%s." % (old_local_file, new_local_log))
     with open(old_local_file, "rb") as old_local_file:
         with open(new_local_log, "wb") as new_local_file:
             for line_b in old_local_file:
@@ -230,6 +237,7 @@ def mqtt(core_uuid, unique_id_list, filename):
     if not os.path.exists(local_file_path + "/mqtt"):
         os.makedirs(local_file_path + "/mqtt")
     move(local_file, local_log)
+    logging.debug("remote log file path:%s, local log filepath:%s." % (local_file, local_log))
     with open(local_log, "rb") as local_log_obj:
         for line in local_log_obj:
             log_list.append(line)
@@ -242,6 +250,7 @@ def callee(core_uuid, callee_username, variable_sip_call_id):
     public_msg(core_uuid, callee_username)
     callee_log_file_path = local_file_path + core_uuid + "/callee_{}_log".format(callee_username)
     callee_log_tmp_file_path = local_file_path + core_uuid + "/tmp/callee_{}_log".format(callee_username)
+    logging.debug("caller check file is exist")
     msg = check_file(callee_log_tmp_file_path)
     if msg:
         callee_log = log_result.get("callee")
@@ -249,7 +258,9 @@ def callee(core_uuid, callee_username, variable_sip_call_id):
         return write_node(log_result.get('callee'), "callee", [])
     log_result.get("callee")["variable_sip_call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, callee_log_tmp_file_path)
+    logging.debug("get caller user start sign ")
     start_line_str, start_bytes_str = _get_start_sign(callee_username)
+    logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
     temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
     start_line = int(start_line_str)
     start_bytes = int(start_bytes_str)
@@ -261,6 +272,7 @@ def callee(core_uuid, callee_username, variable_sip_call_id):
                 log_list.append(line_b)
                 start_line += 1
 
+    logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
     _set_start_sign(callee_username, start_line, start_bytes)
     write_node(log_result.get("callee"), "callee",  log_list)
     call_log_backup(callee_log_file_path, callee_log_tmp_file_path)
@@ -271,7 +283,7 @@ def write_node(handle_msg, mode, log_list):
     写和前端交互的文本  && 和需要展示的log日志文件
     """
     call_type = handle_msg.get("call_type", None)
-
+    logging.debug("%s write_node " % mode)
     # call_type_list = [audiosingle, videosingle, audiogroup, videogroup, ...]
     # 视频单呼组呼，音频单呼组呼。
     if call_type[0] in ["audiosingle", "videosingle", "videogroup", "audiogroup", "singlecall"]:
@@ -328,6 +340,7 @@ def write_conf(mode, handle_msg):
         build_id = None
         conf_file_name = ""
 
+    logging.debug("write config node file path:%s" % conf_file_path + conf_file_name)
     if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
         os.remove(conf_file_path + conf_file_name)
         copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
@@ -356,6 +369,7 @@ def write_log(handle_msg, log_list, mode, call_sip=None):
     编辑需要展示的日志文件内容
     单呼 组呼 写日志文件
     """
+    logging.debug("%s start to write log file " % mode)
     err_msg = handle_msg.get("err_msg")
     call_type = handle_msg.get("call_type")
     if call_type[0] in ["audiosingle", "singlecall"]:
@@ -371,6 +385,7 @@ def write_log(handle_msg, log_list, mode, call_sip=None):
         mode_show_log_path = mode_show_log_path + call_sip + "/"
     if not os.path.exists(mode_show_log_path):
         os.makedirs(mode_show_log_path)
+    logging.debug("%s write file path:%s" % (mode, mode_show_log_path))
     if err_msg:
         err_log_file = mode_show_log_path + "err_log"
         with open(err_log_file, "w") as err_log_file:
@@ -403,6 +418,7 @@ def public_msg(core_uuid, call_username):
         }
         msg_str = json.dumps(msg)
         print("public payload:", msg_str)
+        logging.debug("public topic: %s , payload: %s " % ("/5476752146/log_analyse/{}".format(sip), msg_str))
         client.publish("/5476752146/log_analyse/{}".format(sip), msg_str, 1)
     if isinstance(call_username, list):
         for sip in call_username:

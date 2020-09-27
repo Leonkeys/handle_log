@@ -33,7 +33,7 @@ def upload_file():
     :return:
     """
     if request.method == 'POST':
-        print("api is ready")
+        print("upload_file")
         if 'file' not in request.files:
             print('No file part')
             return redirect(request.url)
@@ -71,6 +71,7 @@ def clean_offset():
         call_sip:<用户sip号>
     """
     if request.method.upper() == "POST":
+        print("clean_offset")
         call_sip = request.form.get("call_sip")
         redis_client.hdel(call_sip, "start_line", "start_bytes")
         resp = make_response({"state": "is_success"})
@@ -134,6 +135,7 @@ def log_handle():
 
         caller(core_uuid, caller_username, caller_sip_uuid)
         for func, remote_log_path in remote_log_path_list.items():
+            logging.debug("func: %s" % func)
             if func == "mqtt":
                 remote_log_path = get_mqtt_log_path(remote_log_path)
                 filename = "emqttd.log"

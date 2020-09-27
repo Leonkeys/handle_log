@@ -2,7 +2,7 @@
 
 # run setting
 HOST = "192.168.22.194"
-PORT = "8004"
+PORT = "18004"
 DEBUG = True
 
 # server

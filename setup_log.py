@@ -3,7 +3,8 @@ import logging
 import os
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = "/home/nufront"
 
 
 class Config(object):
@@ -39,7 +40,9 @@ def setup_log(config):
     logger = logging.getLogger()
     logger.setLevel(config.LOG_LEVEL)
 
-    handler = logging.FileHandler(os.path.join(BASE_DIR, "logs/log"))
+    if not os.path.exists(os.path.join(BASE_DIR, "logs")):
+        os.makedirs(os.path.join(BASE_DIR, "logs"))
+    handler = logging.FileHandler(os.path.join(BASE_DIR, "logs/webserver.log"))
     handler.setLevel(config.LOG_LEVEL)
 
     console = logging.StreamHandler()

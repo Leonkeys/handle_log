@@ -240,10 +240,10 @@ LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eUE.
 LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eMon.log'
 LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/navita-docker.log'
 
-NAVITA_START = ['any_sign',' ',1,' ','any_sign','1104',[[1,'switch_channel','any_sign','']],'sofia']
-NAVITA_NORMAL_SINGLE_OVER_1 = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','Action'], [1,'fs_over','dispatcher_check','']],'']
-NAVITA_SINGLE_CALL_TYPE = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','export'], [1,'call_type','any_sign','']],'\n']
-NAVITA_SINGLE_CALLER = ['any_sign',' ',1,' ','any_sign','Processing',[[1,'caller','any_sign','']],'in']
+#NAVITA_START = ['any_sign',' ',1,' ','any_sign','1104',[[1,'switch_channel','any_sign','']],'sofia']
+#NAVITA_NORMAL_SINGLE_OVER_1 = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','Action'], [1,'fs_over','dispatcher_check','']],'']
+#NAVITA_SINGLE_CALL_TYPE = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','export'], [1,'call_type','any_sign','']],'\n']
+#NAVITA_SINGLE_CALLER = ['any_sign',' ',1,' ','any_sign','Processing',[[1,'caller','any_sign','']],'in']
 NAVITA_END = []
 
 EUE_START = ['','',6,' ','any_sign','MESSAGE ',[[1,'call_type','any_sign',' '], [0, 'id','any_sign',','], [0,'from','any_sign',','],[0,'to','any_sign',' '],[1,'eue_s_flag','started','']],'']
@@ -277,7 +277,7 @@ ERROR_ERR_12 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'error','any_sign','']]
 ERROR_TT_13 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'timeout','any_sign','']],'\n']
 ERROR_FAL_14 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'fail','any_sign','']],'\n']
 
-LOG_FORMAT_LIST = [EUE_START, EUE_END, EUE_PER_AND_DELAY, EMON_START,EMON_END,EMON_PER,EMON_OUT_DELAY,EMON_IN_DELAY, NAVITA_START, NAVITA_NORMAL_SINGLE_OVER_1, NAVITA_SINGLE_CALL_TYPE, NAVITA_SINGLE_CALLER, ERROR_AUTH_1, ERROR_AUTH_2,ERROR_AUTH_3,ERROR_AUTH_4,ERROR_REF_5,ERROR_REF_6,ERROR_FAT_7,ERROR_WR_8,ERROR_INV_9,ERROR_ERR_10,ERROR_ERR_11,ERROR_ERR_12,ERROR_TT_13,ERROR_FAL_14]
+LOG_FORMAT_LIST = [EUE_START, EUE_END, EUE_PER_AND_DELAY, EMON_START,EMON_END,EMON_PER,EMON_OUT_DELAY,EMON_IN_DELAY,ERROR_AUTH_1, ERROR_AUTH_2,ERROR_AUTH_3,ERROR_AUTH_4,ERROR_REF_5,ERROR_REF_6,ERROR_FAT_7,ERROR_WR_8,ERROR_INV_9,ERROR_ERR_10,ERROR_ERR_11,ERROR_ERR_12,ERROR_TT_13,ERROR_FAL_14]
 
 
 ERROR_VALUE = dict()
@@ -352,6 +352,9 @@ def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LI
         for errkey in err_keys:
             if errkey in i.keys():
                 ERROR_VALUE[errkey].append(i[errkey])
+        if caller and  callee and call_t:
+            return 0
+
     #print("ERROR_VALUE: ", ERROR_VALUE)
     print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay)
     if log_callid == caller_uuid  and emon_flag == 2:
@@ -360,6 +363,7 @@ def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LI
          analyse_result[caller]['call_type'][2] = callee
          analyse_result[caller]['err_msg'] = ERROR_VALUE
          analyse_result[caller]['delay_time'] = out_delay
+         return 0
 
     if log_callid == callee_uuid  and emon_flag == 2:
          analyse_result[callee]['call_type'][0] = call_t
@@ -367,9 +371,8 @@ def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LI
          analyse_result[callee]['call_type'][2] = callee
          analyse_result[callee]['err_msg'] = ERROR_VALUE
          analyse_result[callee]['delay_time'] = in_delay
-
+         return 0
     return 0
-
   
 
 #FLAG_DICT = { "navita":{"log_valid":"1","call_type":"[type,caller,calleder]", "state":"0", "err_msg":"None","build_id":"<audiogroup*1111*>","delay_time":""}, "dis":{ "log_valid":"1", "dis_start":"no"}}

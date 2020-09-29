@@ -17,6 +17,7 @@ from sys import exit, argv as sys_argv
 from subprocess import run, PIPE
 import glob
 import pymongo
+import chardet
 
 from .common_log import mongo_client, LOG_TYPE, convert_time, parse_line_common, get_log_key_list 
 
@@ -173,7 +174,11 @@ class Processor(object):
 
         last_offset = 0
         # 打开文件,找到相应的offset进行处理
-        fobj = open(self.log_name)
+        #with open(self.log_name, 'r', encoding='iso8859-1') as f:
+        with open(self.log_name, 'rb') as f:
+            file_encode = chardet.detect(f.read())['encoding']
+            print(chardet.detect(f.read())['encoding'])
+        fobj = open(self.log_name, encoding = file_encode)
         print("open:", self.log_name)
         fobj.seek(last_offset)
         parsed_offset = last_offset
@@ -182,9 +187,7 @@ class Processor(object):
             if last_offset >= logobj.cur_size:
                 fobj.close()
                 return
-            parsed_offset += len(line_str.encode('utf-8')) #不转换的话，汉字被当成一个字符
-            #print("parsed offset is : " + str(parsed_offset) + "\n")
-            #print("logobj.cur_size is : " + str(logobj.cur_size) + "\n")
+            parsed_offset += len(line_str.encode('utf8')) #不转换的话，汉字被当成一个字符
             line_res,match_id = logobj.parse_line(line_str, self.log_format_list)            
             if not line_res or not line_res['time_local']:
                 self.invalid_log += 1
@@ -233,14 +236,141 @@ class Processor(object):
 
 LOG_PATH = '/home/user/mywork2019/alarm/log_analyse_zj/common/log/part_log_test_1.log'
 LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/fs_normal_audio_s.log'
+LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eUE.log'
+LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eMon.log'
+LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/navita-docker.log'
 
 NAVITA_START = ['any_sign',' ',1,' ','any_sign','1104',[[1,'switch_channel','any_sign','']],'sofia']
 NAVITA_NORMAL_SINGLE_OVER_1 = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','Action'], [1,'fs_over','dispatcher_check','']],'']
 NAVITA_SINGLE_CALL_TYPE = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','export'], [1,'call_type','any_sign','']],'\n']
 NAVITA_SINGLE_CALLER = ['any_sign',' ',1,' ','any_sign','Processing',[[1,'caller','any_sign','']],'in']
 NAVITA_END = []
-LOG_FORMAT_LIST = [NAVITA_START, NAVITA_NORMAL_SINGLE_OVER_1, NAVITA_SINGLE_CALL_TYPE, NAVITA_SINGLE_CALLER]
 
+EUE_START = ['','',6,' ','any_sign','MESSAGE ',[[1,'call_type','any_sign',' '], [0, 'id','any_sign',','], [0,'from','any_sign',','],[0,'to','any_sign',' '],[1,'eue_s_flag','started','']],'']
+EUE_END = ['','',6,' ','any_sign','MESSAGE ',[[1,'call_type','any_sign',' '], [0, 'id','any_sign',','], [0,'from','any_sign',','],[0,'to','any_sign',' '], [1,'eue_end_flag','end','']],'']
+EUE_PER_AND_DELAY= ['','',6,' ','any_sign','STAT:',[[1,'per_and_delay','any_sign',' ='],[1,'value','any_sign','']],'\n']
+
+
+EMON_START = ['','',6,' ','any_sign','MESSAGE s',[[1,'emon_s_flag','any_sign',','],[0,'type','any_sign',','],[0,'from','any_sign',','],[0,'to','any_sign',' '],[1,'dir','any_sign','']],'\n']
+
+EMON_END = ['','',6,' ','any_sign','MESSAGE ',[[1,'emon_e_flag','any_sign',','],[0,'type','any_sign',','],[0,'from','any_sign',','],[0,'to','any_sign',','],[1,'nothing','any_sign',':'], [1,'callid','any_sign','']],'\n']
+
+#2020-09-17 15:53:15:342 [libsip] MESSAGE Total Confirmed Percent = 93.333336
+EMON_PER = ['','',6,' ','any_sign','MESSAGE ',[[1,'emon_per','any_sign','Percent ='], [1,'emon_per_value','any_sign','']],'\n']
+#2020-09-16 17:38:33:097 [libsip] MESSAGE Outgoing Set-up Time 195
+#2020-09-27 14:59:26:321 [libsip] MESSAGE Incoming Set-up Time 28
+EMON_OUT_DELAY = ['','',6,' ','any_sign','Outgoing Set-up Time',[[1,'out_setup_time','any_sign','']],'\n']
+EMON_IN_DELAY = ['','',6,' ','any_sign','Incoming Set-up Time',[[1,'in_setup_time','any_sign','']],'\n']
+
+ERROR_AUTH_1 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'"need auth"','any_sign','']],'\n']
+ERROR_AUTH_2 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'"auth failed"','any_sign','']],'\n']
+ERROR_AUTH_3 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'"require pass"','any_sign','']],'\n']
+ERROR_AUTH_4 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'auth','any_sign','']],'\n']
+ERROR_REF_5 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'refuse','any_sign','']],'\n']
+ERROR_REF_6 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'reject','any_sign','']],'\n']
+ERROR_FAT_7 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'fault','any_sign','']],'\n']
+ERROR_WR_8 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'wrong','any_sign','']],'\n']
+ERROR_INV_9 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'invalid','any_sign','']],'\n']
+ERROR_ERR_10 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'err','any_sign','']],'\n']
+ERROR_ERR_11 = ['','',1, ' ','','\[',[[3,'err','any_sign','']],'\n']
+ERROR_ERR_12 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'error','any_sign','']],'\n']
+ERROR_TT_13 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'timeout','any_sign','']],'\n']
+ERROR_FAL_14 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'fail','any_sign','']],'\n']
+
+LOG_FORMAT_LIST = [EUE_START, EUE_END, EUE_PER_AND_DELAY, EMON_START,EMON_END,EMON_PER,EMON_OUT_DELAY,EMON_IN_DELAY, NAVITA_START, NAVITA_NORMAL_SINGLE_OVER_1, NAVITA_SINGLE_CALL_TYPE, NAVITA_SINGLE_CALLER, ERROR_AUTH_1, ERROR_AUTH_2,ERROR_AUTH_3,ERROR_AUTH_4,ERROR_REF_5,ERROR_REF_6,ERROR_FAT_7,ERROR_WR_8,ERROR_INV_9,ERROR_ERR_10,ERROR_ERR_11,ERROR_ERR_12,ERROR_TT_13,ERROR_FAL_14]
+
+
+ERROR_VALUE = dict()
+err_keys = ['needauth','authfailed','requirepass','auth','refuse','reject','fault','wrong','invalid','err','error','timeout','fail']
+
+def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
+    print("enter analyse main()")
+    if log_name is None  or analyse_result is None:
+        analyse_result["analyse_error"] = "file name or key args none."
+        #print(analyse_result["error"])
+        return analyse_result
+    processor = Processor(log_name,log_format_list, private_name)
+    processor.go_process()
+
+    global ERROR_VALUE
+    if ERROR_VALUE:
+        ERROR_VALUE.clear()
+    ERROR_VALUE = {key:[] for key in err_keys}
+    
+    log_callid = caller = callee = call_t = None
+    in_delay = out_delay = income_percent = outgo_percent = total_percent = ''
+    db_client = processor.mymongo.mongodb['main']
+    cursor = db_client.find()
+    li = list(cursor)
+    ex_flag = 0
+    print("list:-------",li)
+    if analyse_result['caller']['call_id'] is not None: 
+        caller_uuid = analyse_result['caller']['call_id']
+    if analyse_result['callee']['call_id'] is not None:
+        callee_uuid = analyse_result['callee']['call_id']
+    for i in li:
+        if 'emon_e_flag' in i.keys() or  'emon_s_flag' in i.keys():
+            ex_flag = ex_flag + 1
+            caller = i['from'][1:len(i['from'])-1]
+            callee = i['to'][1:len(i['to'])-1]
+            call_t = i['type'][1:len(i['type'])-1]
+            log_callid = i['callid'][1:len(i['callid'])-1]
+            print("emon:",  ex_flag, caller, callee, call_t, log_callid)
+        if 'eue_s_flag' in i.keys() or 'eue_e_flag' in i.keys():
+            ex_flag = ex_flag + 1
+            caller = i['from'][1:len(i['from'])-1]
+            callee = i['to'][1:len(i['to'])-1]
+            call_t = i['call_type']
+            log_callid = i['id'][1:len(i['id'])-1]
+            print("eue:",  ex_flag, caller, callee, call_t, log_callid)
+
+        if 'out_setup_time' in i.keys():
+            out_delay = i['setup_time']
+            print("emon out delay:", emon_delay)
+        if 'in_setup_time' in i.keys():
+            in_delay = i['setup_time']
+            print("emon in delay:", emon_delay)
+
+        if 'emon_per' in i.keys():
+            if i['emon_per'] == 'Incoming Confirmed ':
+                income_percent = i['emon_per_value']
+            if i['emon_per'] == 'Invite Confirmed ':
+                outgo_percent = i['emon_per_value']
+            if i['emon_per'] == 'Total Confirmed ':
+                total_percent = i['emon_per_value']
+        if 'per_and_delay' in i.keys():
+            if i['per_and_delay'] == 'Incoming Set-up Time(Avg)':
+                in_delay = i['value']
+            if i['per_and_delay'] == 'Invite Set-up Time(Avg)':
+                out_delay = i['value']
+            if i['per_and_delay'] == 'Incoming Confirmed Percent':
+                income_percent = i['value'] + '%'
+            if i['per_and_delay'] == 'Invite Confirmed Percent':
+                outgo_percent = i['value'] + '%'
+            if i['per_and_delay'] == 'Total Confirmed Percent':
+                total_percent = i['value'] + '%'
+        for errkey in err_keys:
+            if errkey in i.keys():
+                ERROR_VALUE[errkey].append(i[errkey])
+    #print("ERROR_VALUE: ", ERROR_VALUE)
+    print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay)
+    if log_callid == caller_uuid  and emon_flag == 2:
+         analyse_result[caller]['call_type'][0] = call_t
+         analyse_result[caller]['call_type'][1] = caller
+         analyse_result[caller]['call_type'][2] = callee
+         analyse_result[caller]['err_msg'] = ERROR_VALUE
+         analyse_result[caller]['delay_time'] = out_delay
+
+    if log_callid == callee_uuid  and emon_flag == 2:
+         analyse_result[callee]['call_type'][0] = call_t
+         analyse_result[callee]['call_type'][1] = caller
+         analyse_result[callee]['call_type'][2] = callee
+         analyse_result[callee]['err_msg'] = ERROR_VALUE
+         analyse_result[callee]['delay_time'] = in_delay
+
+    return 0
+
+  
 
 #FLAG_DICT = { "navita":{"log_valid":"1","call_type":"[type,caller,calleder]", "state":"0", "err_msg":"None","build_id":"<audiogroup*1111*>","delay_time":""}, "dis":{ "log_valid":"1", "dis_start":"no"}}
 
@@ -260,7 +390,7 @@ log_name:        需要解析的log文件
 log_format_list：用户输入的log格式列表
 private_name：   对log匹配结果进行私有业务处理的文件。除了后缀，文件名不能带'.'
 """
-def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
+def analyse_main_1(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
     print("enter analyse main()")
     if log_name is None  or analyse_result is None:
         analyse_result["analyse_error"] = "file name or key args none."

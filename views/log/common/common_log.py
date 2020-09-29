@@ -14,7 +14,7 @@ list_model = [prefix_1,split_pre_1,time_type,split_time,prefix_2,split_pre_2,lis
 log_format_list =  [list_model_1,list_model_2,...]
 
 #Date Time Format, now only support these formats:
-# 1:  yyyy-MM-dd HH:mm:ss.SSS 或 MM-dd HH:mm:ss.SSS
+# 1:  yyyy-MM-dd HH:mm:ss.SSS 或 MM-dd HH:mm:ss.SSS  or yyyy/mm/dd hh:mm:ss.SSS
 # 2:  yyyy-MM-dd HH:mm:ss 或 MM-dd HH:mm:ss
 # 3:  HH:mm:ss.SSS
 # 4:  HH:mm:ss
@@ -32,7 +32,8 @@ LOG_FORMAT = ['','',2,':','','',[[0,'hwnsa','any_sign',','],[1,'recv','any_sign'
 #list_log_format = ['','',1,' ','','',[[1,'module','any_sign',':'],[0,'out_set_parameters()','any_sign','']],'']
 
 LOG_TYPE = 'plaintext'
-MONGO_HOST = "localhost"
+#MONGO_HOST = "localhost"
+MONGO_HOST = "192.168.22.90"
 MONGO_PORT = 27017
 mongo_client = pymongo.MongoClient(MONGO_HOST, MONGO_PORT, connect=False)
 
@@ -74,7 +75,7 @@ def get_regular(list_log_format):
     regular += '(?P<prefix_1>'+prefix_1+')\s*'+split_pre_1
   else:
     #print("prefix_1 is null \n")
-    regular += ''
+    regular += '' + split_pre_1
 
   if time_type == 1:
     #print("time is 1 \n")
@@ -90,6 +91,10 @@ def get_regular(list_log_format):
     regular += '\s*(?P<time_local>\d+:\d+:\d+)\s*'+split_time
   elif time_type == 5:
     regular += '\s*(?P<time_local>\w{8})\s*'+split_time
+  elif time_type == 6:
+      regular += '\s*(?P<time_local>[^ ]+\s+\d+:\d+:\d+:\d+)\s*'+split_time
+  elif time_type == 7:
+      regular += ''
   else:
     #print("time is missing..." + regular)
     regular = ''
@@ -98,7 +103,9 @@ def get_regular(list_log_format):
   if prefix_2 == any_sign:
     regular += '\s*'+'(?P<prefix_2>.*)\s*'+split_pre_2
   elif prefix_2:
-    regular += '\s*'+'(?P<prefix_2>'+prefix_2+')\s*'+split_pre_2 
+    regular += '\s*'+'(?P<prefix_2>'+prefix_2+')\s*'+split_pre_2
+  else:
+    regular += '' + split_pre_2
   
   #return regular
   #list_key=[loading...]
@@ -107,17 +114,26 @@ def get_regular(list_log_format):
 	  return regular
   list_key[len_key-1][3] = sign_end
   for i in range(len_key):
-    if list_key[i][0]:
+    if list_key[i][0] == 1:
         if list_key[i][2] == any_sign:
            regular += '\s*'+'(?P<'+list_key[i][1]+'>[^:]*)\s*'+list_key[i][3]
         else:
            regular += '\s*'+'(?P<'+list_key[i][1]+'>'+list_key[i][2]+')\s*'+list_key[i][3]
-    else:
+    if list_key[i][0] == 0:
         if list_key[i][2] == any_sign:
            regular += '\s*'+list_key[i][1]+'\s*'+':'+'\s*'+'(?P<'+list_key[i][1]+'>.*)\s*'+list_key[i][3]
         else:
-            regular += '\s*'+list_key[i][1]+'\s*'+':'+'\s*'+'(?P<'+list_key[i][1]+'>'+list_key[i][2]+')\s*'+list_key[i][3]
-
+           regular += '\s*'+list_key[i][1]+'\s*'+':'+'\s*'+'(?P<'+list_key[i][1]+'>'+list_key[i][2]+')\s*'+list_key[i][3]
+    if list_key[i][0] == 3:
+        if list_key[i][2] == any_sign:
+            if list_key[i][1][0] == '"' and list_key[i][1][-1] == '"': 
+                key = eval(list_key[i][1])
+            else:
+                key = list_key[i][1]
+            regular += '\s*'+list_key[i][1]+'\s*'+'(?P<'+key.replace(' ', '')+'>.*)\s*'+list_key[i][3]
+        else:
+           key = eval(list_key[i][1])
+           regular += '\s*'+list_key[i][1]+'\s*'+'(?P<'+key.replace(' ', '')+'>'+list_key[i][2]+')\s*'+list_key[i][3]
   return regular
 
 
@@ -136,7 +152,7 @@ def parse_line_common(line_str, log_format_list):
    #print(log_pattern_list)
    #print("\n")
    for i in range(len(log_pattern_list)):
-      log_pattern_obj = re.compile(log_pattern_list[i])
+      log_pattern_obj = re.compile(log_pattern_list[i], re.IGNORECASE)
       parse = log_pattern_obj.match(line_str)
       if not parse or not log_pattern_list[i]:
          #print("fail match this time " + str(i)+ "\n")
@@ -148,7 +164,7 @@ def parse_line_common(line_str, log_format_list):
          #print(parse.group(1))
          #print("time_local", parse["time_local"], parse.groupdict())
          x=parse.groupdict()
-         if x["time_local"] == 'Dialplan':
+         if "time_local" not in x.keys():
              x["time_local"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
          print(parse.groups())
          return x,i+1

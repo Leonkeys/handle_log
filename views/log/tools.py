@@ -1,6 +1,4 @@
 import os
-
-import threading
 import logging
 import json
 import time
@@ -28,7 +26,6 @@ mqtt_host = app.config["MQTT_HOST"]
 mqtt_port = app.config["MQTT_PORT"]
 # engine = create_engine(DB_CONNECT)
 # Session = sessionmaker(bind=engine)
-lock = threading.Lock()
 log_result = {
     "caller": {
         "call_id": None,
@@ -64,7 +61,7 @@ log_result = {
     "callee": {
         "call_id": "",
         "log_valid": "1",
-        "state": "1",
+        "state": {},
         "err_msg": None,
         "delay_time": 27017
     }
@@ -233,35 +230,44 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
     write_node(log_result.get("mqtt"), mode, call_type, log_list)
 
 
-def callee(core_uuid, callee_username, call_type, variable_sip_call_id):
-    public_msg(core_uuid, callee_username)
-    callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(callee_username)
-    logging.debug("caller check file is exist")
-    msg = check_file(callee_log_tmp_file_path)
-    if msg:
-        callee_log = log_result.get("callee")
-        callee_log["err_msg"] = msg
-        return write_node(log_result.get('callee'), "callee", call_type, [])
+def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
+    public_msg(core_uuid, callee_username_list)
+    global log_result
     log_result.get("callee")["variable_sip_call_id"] = variable_sip_call_id
-    # com.analyse_main(log_result, callee_log_tmp_file_path)
-    logging.debug("get caller user start sign")
-    start_line_str, start_bytes_str = _get_start_sign(callee_username)
-    logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
-    temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
-    start_line = int(start_line_str)
-    start_bytes = int(start_bytes_str)
-    start_bytes += temp_file_bytes
-    log_list = list()
-    with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
-        for line_b in callee_log_tmp_file:
-            if line_b:
-                log_list.append(line_b)
-                start_line += 1
-
-    logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
-    _set_start_sign(callee_username, start_line, start_bytes)
-    write_node(log_result.get("callee"), "callee", call_type, log_list)
-    call_log_backup(callee_log_tmp_file_path)
+    if isinstance(callee_username_list, list):
+        for sip in callee_username_list:
+            log_list = list()
+            callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(sip)
+            callee_log = log_result.get("callee")
+            msg = check_file(callee_log_tmp_file_path)
+            if msg:
+                callee_log["err_msg"] = msg
+                callee_log.get("state")[sip] = 2
+                write_log(log_result.get("callee"), log_list, "callee", call_sip=sip, call_type=call_type)
+                continue
+            # state = com.analyse_main(log_result, callee_log_tmp_file_path)
+            start_line_str, start_bytes_str = _get_start_sign(sip)
+            temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
+            start_line = int(start_line_str)
+            start_bytes = int(start_bytes_str)
+            start_bytes += temp_file_bytes
+            with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
+                for line_b in callee_log_tmp_file:
+                    if line_b:
+                        log_list.append(line_b)
+                        start_line += 1
+            _set_start_sign(sip, start_line, start_bytes)
+            # callee_log.get("state")[sip] = state
+            write_log(log_result.get("callee"), log_list, "callee", call_sip=sip, call_type=call_type)
+            callee_log.get("state")[sip] = 1
+        write_conf("callee", log_result.get("callee"), call_type=call_type)
+        # call_log_backup(callee_log_file_path, callee_log_tmp_file_path)
+    else:
+        msg = "log_handle is err please call manager(callee mode need callee_username_list is a list not other type)"
+        callee_log = log_result.get('callee')
+        callee_log["err_msg"] = msg
+        callee_log["state"] = 2
+        return write_node(log_result.get("callee"), "callee", call_type, [])
 
 
 def write_node(handle_msg, mode, call_type, log_list):
@@ -327,8 +333,13 @@ def write_conf(mode, handle_msg, call_type=None):
             file_msg_list.append(conf_line)
         if state:
             if isinstance(state, dict):
-                file_msg_list[mode_write_line - 1] = json.dumps(state) + "\n"
-            file_msg_list[mode_write_line - 1] = state + "\n"
+                if len(state) > 1:
+                    file_msg_list[mode_write_line - 1] = json.dumps(state) + "\n"
+                else:
+                    for i in state.values():
+                        file_msg_list[mode_write_line - 1] = str(i) + "\n"
+            else:
+                file_msg_list[mode_write_line - 1] = str(state) + "\n"
         if delay_time:
             file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
             old_delay_time = int(file_msg_list[45].replace("\n", ""))
@@ -486,7 +497,7 @@ def get_call_username(create_channel_dict_l):
             if create_channel_dict.get("Caller-Callee-ID-Number").isdigit():
                 callee_username_list.append(create_channel_dict.get("Caller-Callee-ID-Number"))
 
-    return caller_username, callee_username_list
+    return caller_username, list(set(callee_username_list))
 
 
 # variable_sip_h_X-NF-Video

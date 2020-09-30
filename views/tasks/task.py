@@ -12,11 +12,11 @@ job_list = [
     #     "seconds": 20
     # },
 
-    {
-        "func": "rsync_remote_log",
-        "trigger": "interval",
-        "seconds": 22
-    }
+    # {
+    #     "func": "rsync_remote_log",
+    #     "trigger": "interval",
+    #     "seconds": 22
+    # }
 ]
 
 

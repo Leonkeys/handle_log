@@ -123,16 +123,17 @@ def put_msg(core_uuid, msg_dict):
     start_call_queue.put(msg_dict[core_uuid])
     del msg_dict[core_uuid]
 
-# Caller-Destination-Number
+
 def log_handle():
     print("log_handle-start")
     while 1:
         create_channel_dict_l = start_call_queue.get()
         call_type, build_id = get_call_type(create_channel_dict_l)
+        # TODO bug ignore
         write_build_id(call_type, build_id)
-        # caller_username, callee_username_list = get_call_username(create_channel_dict_l)
-        caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
-        callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
+        caller_username, callee_username_list = get_call_username(create_channel_dict_l)
+        # caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
+        # callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
         core_uuid = create_channel_dict_l[0].get("Core-UUID")
         caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
         unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
@@ -153,7 +154,7 @@ def log_handle():
                 get_server_log(remote_log_path)
             call_func(func, core_uuid, unique_id_list, filename, call_type)
 
-        callee(core_uuid, callee_username, call_type, callee_sip_uuid)
+        callee(core_uuid, callee_username_list, call_type, callee_sip_uuid)
 
 
 if __name__ == '__main__':

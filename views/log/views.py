@@ -47,6 +47,8 @@ def upload_file():
             return redirect(request.url)
         filename = "{}_log".format(call_sip)
         file_floder_path = local_file_path + "/tmp"
+        if not os.path.exists(file_floder_path):
+            os.makedirs(file_floder_path)
         filepath = os.path.join(file_floder_path, filename)
         print(filepath)
         if not os.path.exists(file_floder_path):
@@ -71,8 +73,8 @@ def clean_offset():
         call_sip:<用户sip号>
     """
     if request.method.upper() == "POST":
-        print("clean_offset")
         call_sip = request.form.get("call_sip")
+        print("clean_offset：%s" % call_sip)
         redis_client.hdel(call_sip, "start_line", "start_bytes")
         resp = make_response({"state": "is_success"})
         resp.status = "200"
@@ -94,7 +96,7 @@ def listen_ESL():
         while 1:
             msg = con.recvEvent()
             if msg:
-                # print(msg.serialize("json"))
+                print(msg.serialize("json"))
                 create_channel_dict = json.loads(msg.serialize("json"))
                 core_uuid = create_channel_dict.get("Core-UUID")
                 event_name = create_channel_dict.get("Event-Name")
@@ -121,11 +123,13 @@ def put_msg(core_uuid, msg_dict):
     start_call_queue.put(msg_dict[core_uuid])
     del msg_dict[core_uuid]
 
-
+# Caller-Destination-Number
 def log_handle():
     print("log_handle-start")
     while 1:
         create_channel_dict_l = start_call_queue.get()
+        call_type, build_id = get_call_type(create_channel_dict_l)
+        write_build_id(call_type, build_id)
         # caller_username, callee_username_list = get_call_username(create_channel_dict_l)
         caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
         callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
@@ -133,7 +137,7 @@ def log_handle():
         caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
         unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
 
-        caller(core_uuid, caller_username, caller_sip_uuid)
+        caller(core_uuid, caller_username, call_type, caller_sip_uuid)
         for func, remote_log_path in remote_log_path_list.items():
             logging.debug("func: %s" % func)
             if func == "mqtt":
@@ -147,9 +151,9 @@ def log_handle():
                 filename = remote_log_path.split("/")[-1]
             if remote_log_path:
                 get_server_log(remote_log_path)
-            call_func(func, core_uuid, unique_id_list, filename)
+            call_func(func, core_uuid, unique_id_list, filename, call_type)
 
-        callee(core_uuid, callee_username, callee_sip_uuid)
+        callee(core_uuid, callee_username, call_type, callee_sip_uuid)
 
 
 if __name__ == '__main__':

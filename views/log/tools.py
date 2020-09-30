@@ -1,10 +1,11 @@
 import os
+
 import threading
 import logging
 import json
 import time
 import redis
-from shutil import copyfile, move
+from shutil import copyfile, move, rmtree
 from manage import app
 from paho.mqtt import client as mqtt_client
 # from sqlalchemy import create_engine
@@ -32,54 +33,42 @@ log_result = {
     "caller": {
         "call_id": None,
         "log_valid": "1",
-        "call_type": ['audiosingle', '3509', '4500'],
         "state": "1",
         "err_msg": None,
-        "build_id": "151123456",
         "delay_time": 0
     },
     "navita": {
         "log_valid": "1",
-        "call_type": [None, None, None],
-        "state": None,
+        "state": "1",
         "err_msg": None,
-        "build_id": None,
         "delay_time": None
     },
     "dispatcher": {
         "log_valid": "1",
-        "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
         "err_msg": None,
-        "build_id": "151123456",
         "delay_time": 11111
     },
     "api": {
         "log_valid": "1",
-        "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
         "err_msg": None,
-        "build_id": "151123456",
         "delay_time": 10000
     },
     "mqtt": {
         "log_valid": "1",
-        "call_type": ["audiosingle", "3509", "4500"],
         "state": "1",
         "err_msg": None,
-        "build_id": "151123456",
         "delay_time": 27017
     },
     "callee": {
         "call_id": "",
         "log_valid": "1",
-        "call_type": ["audiosingle", "3509", "4500"],
-        "state": {},
+        "state": "1",
         "err_msg": None,
-        "build_id": "151123456",
         "delay_time": 27017
-    },
-    "analyse_error": None}
+    }
+}
 
 
 def get_server_log(remote_path, local_file=None):
@@ -109,25 +98,23 @@ def get_server_log(remote_path, local_file=None):
         print("server log is not found:{}".format(remote_path))
 
 
-def caller(core_uuid, caller_username, variable_sip_call_id):
+def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
     public_msg(core_uuid, caller_username)
-    # Thread(target=public_msg, args=(core_uuid, caller_username)).start()
-    caller_log_file_path = local_file_path + core_uuid + "/{}_log".format(caller_username)
     caller_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(caller_username)
     logging.debug("caller check file is exist")
     msg = check_file(caller_log_tmp_file_path)
     if msg:
         caller_log = log_result.get("caller")
         caller_log["err_msg"] = msg
-        return write_node(log_result.get('caller'), "caller", [])
+        return write_node(log_result.get('caller'), "caller", call_type, [])
     log_list = list()
     log_result.get("caller")["call_id"] = variable_sip_call_id
-    # com.analyse_main(log_result, caller_log_tmp_file_path)
+    # com.analyse_main(log_result, caller_log_tmp_file_path, variable_sip_call_id)
     logging.debug("get caller user start sign ")
     start_line_str, start_bytes_str = _get_start_sign(caller_username)
     logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
     temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
-    print(temp_file_bytes)
+    # print(temp_file_bytes)
     start_line = int(start_line_str)
     start_bytes = int(start_bytes_str)
     start_bytes += temp_file_bytes
@@ -139,11 +126,11 @@ def caller(core_uuid, caller_username, variable_sip_call_id):
 
     logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
     _set_start_sign(caller_username, start_line, start_bytes)
-    write_node(log_result.get("caller"), "caller",  log_list)
-    call_log_backup(caller_log_file_path, caller_log_tmp_file_path)
+    write_node(log_result.get("caller"), "caller", call_type, log_list)
+    call_log_backup(caller_log_tmp_file_path)
 
 
-def freeswitch(core_uuid, unique_id_list, filename):
+def freeswitch(core_uuid, unique_id_list, filename, call_type):
     """
     截取当前通话相关的日志&&freeswitch日志分析
     """
@@ -167,10 +154,10 @@ def freeswitch(core_uuid, unique_id_list, filename):
     # com.analyse_main(log_result, local_log)
     mode = "freeswitch"
     print(log_result)
-    write_node(log_result.get('navita'), mode, log_list)
+    write_node(log_result.get('navita'), mode, call_type, log_list)
 
 
-def dispatcher(core_uuid, unique_id_list, filename):
+def dispatcher(core_uuid, unique_id_list, filename, call_type):
     """
     dispatcher日志分析
     """
@@ -194,10 +181,10 @@ def dispatcher(core_uuid, unique_id_list, filename):
                     new_local_file.write(line_b)
     # com.analyse_main(log_result, local_log)
     mode = "dispatcher"
-    write_node(log_result.get("dispatcher"), mode, log_list)
+    write_node(log_result.get("dispatcher"), mode, call_type, log_list)
 
 
-def api(core_uuid, unique_id_list, filename):
+def api(core_uuid, unique_id_list, filename, call_type):
     """
     api日志分析：欣欣接口调用数据库的日志分析
     """
@@ -220,10 +207,10 @@ def api(core_uuid, unique_id_list, filename):
                         new_local_file.write(line_b)
     # com.analyse_main(log_result, new_local_log)
     mode = "api"
-    write_node(log_result.get("api"), mode, log_list)
+    write_node(log_result.get("api"), mode, call_type, log_list)
 
 
-def mqtt(core_uuid, unique_id_list, filename):
+def mqtt(core_uuid, unique_id_list, filename, call_type):
     """
     mqtt日志分析
     mqtt日志分析指mqtt消息通道收到的消息的分析不是本身服务运行状态分析
@@ -243,22 +230,21 @@ def mqtt(core_uuid, unique_id_list, filename):
             log_list.append(line)
     # com.analyse_main(log_result, local_log)
     mode = "mqtt"
-    write_node(log_result.get("mqtt"), mode, log_list)
+    write_node(log_result.get("mqtt"), mode, call_type, log_list)
 
 
-def callee(core_uuid, callee_username, variable_sip_call_id):
+def callee(core_uuid, callee_username, call_type, variable_sip_call_id):
     public_msg(core_uuid, callee_username)
-    callee_log_file_path = local_file_path + core_uuid + "/callee_{}_log".format(callee_username)
-    callee_log_tmp_file_path = local_file_path + core_uuid + "/tmp/callee_{}_log".format(callee_username)
+    callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(callee_username)
     logging.debug("caller check file is exist")
     msg = check_file(callee_log_tmp_file_path)
     if msg:
         callee_log = log_result.get("callee")
         callee_log["err_msg"] = msg
-        return write_node(log_result.get('callee'), "callee", [])
+        return write_node(log_result.get('callee'), "callee", call_type, [])
     log_result.get("callee")["variable_sip_call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, callee_log_tmp_file_path)
-    logging.debug("get caller user start sign ")
+    logging.debug("get caller user start sign")
     start_line_str, start_bytes_str = _get_start_sign(callee_username)
     logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
     temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
@@ -274,28 +260,29 @@ def callee(core_uuid, callee_username, variable_sip_call_id):
 
     logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
     _set_start_sign(callee_username, start_line, start_bytes)
-    write_node(log_result.get("callee"), "callee",  log_list)
-    call_log_backup(callee_log_file_path, callee_log_tmp_file_path)
+    write_node(log_result.get("callee"), "callee", call_type, log_list)
+    call_log_backup(callee_log_tmp_file_path)
 
 
-def write_node(handle_msg, mode, log_list):
+def write_node(handle_msg, mode, call_type, log_list):
     """
     写和前端交互的文本  && 和需要展示的log日志文件
     """
-    call_type = handle_msg.get("call_type", None)
     logging.debug("%s write_node " % mode)
     # call_type_list = [audiosingle, videosingle, audiogroup, videogroup, ...]
     # 视频单呼组呼，音频单呼组呼。
-    if call_type[0] in ["audiosingle", "videosingle", "videogroup", "audiogroup", "singlecall"]:
-        write_conf(mode, handle_msg)
-        write_log(handle_msg, log_list, mode)
+    if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup"]:
+        write_conf(mode, handle_msg, call_type=call_type)
+        write_log(handle_msg, log_list, mode, call_type=call_type)
 
 
-def write_conf(mode, handle_msg):
+def write_conf(mode, handle_msg, call_type=None):
     """
     单呼 组呼写conf文件
     """
-    call_type = handle_msg.get("call_type")
+
+    if not call_type:
+        call_type = handle_msg.get("call_type")[0]
     state = handle_msg.get('state', "0")
     delay_time = handle_msg.get("delay_time")
     template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
@@ -319,31 +306,21 @@ def write_conf(mode, handle_msg):
         # callee
         mode_write_line = 14
         delay_time_write_line = 44
-    build_id = None
-    if call_type[0] in ["singlecall", "audiosingle"]:
-        if mode == "caller":
-            build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
+    if call_type in ["singlecall", "audiosingle"]:
         conf_file_name = "start_single_audio_call.conf"
-    elif call_type[0] == "videosingle":
-        if mode == "caller":
-            build_id = call_type[0] + "*" + call_type[1] + "*" + call_type[2] + ".00"
+    elif call_type == "videosingle":
         conf_file_name = "start_single_video_call.conf"
-    elif call_type[0] == "audiogroup":
-        if mode == "caller":
-            build_id = handle_msg.get("build_id", "-")
+    elif call_type == "audiogroup":
         conf_file_name = "start_group_audio_call.conf"
-    elif call_type[0] == "videogroup":
-        if mode == "caller":
-            build_id = handle_msg.get("build_id", "-")
+    elif call_type == "videogroup":
         conf_file_name = "start_group_video_call.conf"
     else:
-        build_id = None
         conf_file_name = ""
 
     logging.debug("write config node file path:%s" % conf_file_path + conf_file_name)
-    if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
-        os.remove(conf_file_path + conf_file_name)
-        copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
+    # if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
+    #     os.remove(conf_file_path + conf_file_name)
+    #     copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
     file_msg_list = []
     with open(conf_file_path + conf_file_name, "r+") as conf_file_path:
         for conf_line in conf_file_path:
@@ -352,9 +329,6 @@ def write_conf(mode, handle_msg):
             if isinstance(state, dict):
                 file_msg_list[mode_write_line - 1] = json.dumps(state) + "\n"
             file_msg_list[mode_write_line - 1] = state + "\n"
-        if build_id:
-            file_msg_list[3] = file_msg_list[15]
-            file_msg_list[15] = build_id + "\n"
         if delay_time:
             file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
             old_delay_time = int(file_msg_list[45].replace("\n", ""))
@@ -364,19 +338,20 @@ def write_conf(mode, handle_msg):
             conf_file_path.write(line)
 
 
-def write_log(handle_msg, log_list, mode, call_sip=None):
+def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
     """
     编辑需要展示的日志文件内容
     单呼 组呼 写日志文件
     """
     logging.debug("%s start to write log file " % mode)
     err_msg = handle_msg.get("err_msg")
-    call_type = handle_msg.get("call_type")
-    if call_type[0] in ["audiosingle", "singlecall"]:
+    if not call_type:
+        call_type = handle_msg.get("call_type")[0]
+    if call_type in ["audiosingle", "singlecall"]:
         mode_show_log_path = show_log_path + "start_single_audio_call/" + mode + "/"
-    elif call_type[0] == "videosingle":
+    elif call_type == "videosingle":
         mode_show_log_path = show_log_path + "start_single_video_call/" + mode + "/"
-    elif call_type[0] == "audiogroup":
+    elif call_type == "audiogroup":
         mode_show_log_path = show_log_path + "start_group_audio_call/" + mode + "/"
     else:
         # videogroup
@@ -455,7 +430,7 @@ def _set_start_sign(call_name, start_line, start_bytes):
     redis_client.close()
 
 
-def call_log_backup(call_log_file_path, call_log_tmp_file_path):
+def call_log_backup(call_log_tmp_file_path):
     # tem_file_list = list()
     # with open(call_log_tmp_file_path, 'rb') as call_log_tmp_file:
     #     for line in call_log_tmp_file:
@@ -463,9 +438,10 @@ def call_log_backup(call_log_file_path, call_log_tmp_file_path):
     # with open(call_log_file_path, "ab") as call_log_file_path:
     #     for lines in tem_file_list:
     #         call_log_file_path.write(lines)
-    file_path = call_log_file_path.split("/")[0]
-    if os.path.exists(file_path):
-        os.removedirs(call_log_tmp_file_path)
+    # file_path = call_log_file_path.split("/")[0]
+    path, file = call_log_tmp_file_path.rsplit("/", 1)
+    if os.path.exists(path):
+        rmtree(path)
 
 
 def get_mqtt_log_path(old_path):
@@ -511,3 +487,64 @@ def get_call_username(create_channel_dict_l):
                 callee_username_list.append(create_channel_dict.get("Caller-Callee-ID-Number"))
 
     return caller_username, callee_username_list
+
+
+# variable_sip_h_X-NF-Video
+def get_call_type(create_channel_info_list):
+    for create_channel_info in create_channel_info_list:
+        if create_channel_info.get("Call-Direction") != "inbound":
+            continue
+        call_info_str = create_channel_info.get("Caller-Destination-Number")
+        if call_info_str:
+            if call_info_str.isdigit():
+                caller_user_sip_id = create_channel_info.get("variable_sip_from_user")
+                callee_user_sip_id = create_channel_info.get("variable_sip_to_user")
+                if create_channel_info.get("variable_sip_h_X-NF-Video"):
+                    call_type = "videosingle"
+                    build_id = call_type + "*" + caller_user_sip_id + "*" + callee_user_sip_id + "*00"
+                    return call_type, build_id
+                else:
+                    call_type = "audiosingle"
+                    build_id = call_type + "*" + caller_user_sip_id + "*" + callee_user_sip_id + "*00"
+                    return call_type, build_id
+
+            elif "group" in call_info_str:
+                call_sip_info = create_channel_info.get("Caller-Destination-Number").split("*")
+                call_type = call_sip_info[0]
+                build_id = call_sip_info[-2]
+                return call_type, build_id
+            # elif "urgent" in call_info_str:
+            #     call_type = "urgentaudio"
+            #     build_id = call_info_str
+
+            # elif
+
+
+def write_build_id(call_type, build_id):
+    conf_file_name = ""
+    if call_type == "audiosingle":
+        conf_file_name = "start_single_audio_call.conf"
+    elif call_type == "videosingle":
+        conf_file_name = "start_single_video_call.conf"
+    elif call_type == "audiogroup":
+        conf_file_name = "start_group_audio_call.conf"
+    elif call_type == "videogroup":
+        conf_file_name = "start_group_video_call.conf"
+
+    conf_file_path = app.config["CONF_FILE_PATH"]
+    template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
+    if not conf_file_name:
+        raise Exception("call type is not exist")
+    if os.path.exists(conf_file_path + conf_file_name):
+        os.remove(conf_file_path + conf_file_name)
+        copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
+    file_msg_list = []
+    write_line = 16
+    with open(conf_file_path + conf_file_name, "r+") as write_conf_file_path:
+        for conf_line in write_conf_file_path:
+            file_msg_list.append(conf_line)
+
+        file_msg_list[write_line - 1] = build_id + "\n"
+        write_conf_file_path.seek(0)
+        for line in file_msg_list:
+            write_conf_file_path.write(line)

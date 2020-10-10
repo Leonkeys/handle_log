@@ -26,46 +26,6 @@ mqtt_host = app.config["MQTT_HOST"]
 mqtt_port = app.config["MQTT_PORT"]
 # engine = create_engine(DB_CONNECT)
 # Session = sessionmaker(bind=engine)
-log_result = {
-    "caller": {
-        "call_id": None,
-        "log_valid": "1",
-        "state": "1",
-        "err_msg": None,
-        "delay_time": 0
-    },
-    "navita": {
-        "log_valid": "1",
-        "state": "1",
-        "err_msg": None,
-        "delay_time": None
-    },
-    "dispatcher": {
-        "log_valid": "1",
-        "state": "1",
-        "err_msg": None,
-        "delay_time": 11111
-    },
-    "api": {
-        "log_valid": "1",
-        "state": "1",
-        "err_msg": None,
-        "delay_time": 10000
-    },
-    "mqtt": {
-        "log_valid": "1",
-        "state": "1",
-        "err_msg": None,
-        "delay_time": 27017
-    },
-    "callee": {
-        "call_id": "",
-        "log_valid": "1",
-        "state": {},
-        "err_msg": None,
-        "delay_time": 27017
-    }
-}
 
 
 def get_server_log(remote_path, local_file=None):
@@ -101,29 +61,29 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
     logging.debug("caller check file is exist")
     msg = check_file(caller_log_tmp_file_path)
     if msg:
-        caller_log = log_result.get("caller")
-        caller_log["err_msg"] = msg
-        return write_node(log_result.get('caller'), "caller", call_type, [])
+        caller_log = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "27017.2ms", "analyse_prog_err": ""}
+        call_log_backup(caller_log_tmp_file_path)
+        return write_node(caller_log, "caller", call_type, [])
     log_list = list()
-    log_result.get("caller")["call_id"] = variable_sip_call_id
     # com.analyse_main(log_result, caller_log_tmp_file_path, variable_sip_call_id)
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.1ms", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
-    start_line_str, start_bytes_str = _get_start_sign(caller_username)
-    logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
-    temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
+    # start_line_str, start_bytes_str = _get_start_sign(caller_username)
+    # logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
+    # temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
     # print(temp_file_bytes)
-    start_line = int(start_line_str)
-    start_bytes = int(start_bytes_str)
-    start_bytes += temp_file_bytes
+    # start_line = int(start_line_str)
+    # start_bytes = int(start_bytes_str)
+    # start_bytes += temp_file_bytes
     with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
         for line_b in caller_log_tmp_file:
             if line_b:
                 log_list.append(line_b)
-                start_line += 1
+                # start_line += 1
 
-    logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
-    _set_start_sign(caller_username, start_line, start_bytes)
-    write_node(log_result.get("caller"), "caller", call_type, log_list)
+    # logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
+    # _set_start_sign(caller_username, start_line, start_bytes)
+    write_node(handle_info, "caller", call_type, log_list)
     call_log_backup(caller_log_tmp_file_path)
 
 
@@ -149,9 +109,10 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     # com.analyse_main(log_result, local_log)
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.2ms", "analyse_prog_err": ""}
     mode = "freeswitch"
-    print(log_result)
-    write_node(log_result.get('navita'), mode, call_type, log_list)
+    print(mode, handle_info)
+    write_node(handle_info, mode, call_type, log_list)
 
 
 def dispatcher(core_uuid, unique_id_list, filename, call_type):
@@ -177,8 +138,10 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
                     log_list.append(line_b)
                     new_local_file.write(line_b)
     # com.analyse_main(log_result, local_log)
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.3ms", "analyse_prog_err": ""}
     mode = "dispatcher"
-    write_node(log_result.get("dispatcher"), mode, call_type, log_list)
+    print(mode, handle_info)
+    write_node(handle_info, mode, call_type, log_list)
 
 
 def api(core_uuid, unique_id_list, filename, call_type):
@@ -203,8 +166,10 @@ def api(core_uuid, unique_id_list, filename, call_type):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     # com.analyse_main(log_result, new_local_log)
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.3ms", "analyse_prog_err": ""}
     mode = "api"
-    write_node(log_result.get("api"), mode, call_type, log_list)
+    print(mode, handle_info)
+    write_node(handle_info, mode, call_type, log_list)
 
 
 def mqtt(core_uuid, unique_id_list, filename, call_type):
@@ -226,48 +191,48 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
         for line in local_log_obj:
             log_list.append(line)
     # com.analyse_main(log_result, local_log)
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.5ms", "analyse_prog_err": ""}
     mode = "mqtt"
-    write_node(log_result.get("mqtt"), mode, call_type, log_list)
+    print(mode, handle_info)
+    write_node(handle_info, mode, call_type, log_list)
 
 
 def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
     public_msg(core_uuid, callee_username_list)
-    global log_result
-    log_result.get("callee")["variable_sip_call_id"] = variable_sip_call_id
+    handle_info = {"log_valid": "1", "state": {}, "err_msg": "", "delay_time": {}, "analyse_prog_err": ""}
     if isinstance(callee_username_list, list):
         for sip in callee_username_list:
             log_list = list()
             callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(sip)
-            callee_log = log_result.get("callee")
             msg = check_file(callee_log_tmp_file_path)
             if msg:
-                callee_log["err_msg"] = msg
-                callee_log.get("state")[sip] = 2
-                write_log(log_result.get("callee"), log_list, "callee", call_sip=sip, call_type=call_type)
+                handle_info["err_msg"] = msg
+                handle_info.get("state")[sip] = 2
+                write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
                 continue
-            # state = com.analyse_main(log_result, callee_log_tmp_file_path)
-            start_line_str, start_bytes_str = _get_start_sign(sip)
-            temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
-            start_line = int(start_line_str)
-            start_bytes = int(start_bytes_str)
-            start_bytes += temp_file_bytes
+            # start_line_str, start_bytes_str = _get_start_sign(sip)
+            # temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
+            # start_line = int(start_line_str)
+            # start_bytes = int(start_bytes_str)
+            # start_bytes += temp_file_bytes
             with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                 for line_b in callee_log_tmp_file:
                     if line_b:
                         log_list.append(line_b)
-                        start_line += 1
-            _set_start_sign(sip, start_line, start_bytes)
-            # callee_log.get("state")[sip] = state
-            write_log(log_result.get("callee"), log_list, "callee", call_sip=sip, call_type=call_type)
-            callee_log.get("state")[sip] = 1
-        write_conf("callee", log_result.get("callee"), call_type=call_type)
-        # call_log_backup(callee_log_file_path, callee_log_tmp_file_path)
+                        # start_line += 1
+            # _set_start_sign(sip, start_line, start_bytes)
+            # handle_info = com.analyse_main(log_result, callee_log_tmp_file_path)
+            print("callee", handle_info)
+            handle_info.get("state")[sip] = 1
+            handle_info.get("delay_time")[sip] = "1432.22ms"
+            write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
+            call_log_backup(callee_log_tmp_file_path)
+        write_conf("callee", handle_info, call_type=call_type)
     else:
         msg = "log_handle is err please call manager(callee mode need callee_username_list is a list not other type)"
-        callee_log = log_result.get('callee')
-        callee_log["err_msg"] = msg
-        callee_log["state"] = 2
-        return write_node(log_result.get("callee"), "callee", call_type, [])
+        handle_info["err_msg"] = msg
+        handle_info["state"] = 2
+        return write_node(handle_info, "callee", call_type, [])
 
 
 def write_node(handle_msg, mode, call_type, log_list):
@@ -341,9 +306,19 @@ def write_conf(mode, handle_msg, call_type=None):
             else:
                 file_msg_list[mode_write_line - 1] = str(state) + "\n"
         if delay_time:
-            file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
-            old_delay_time = int(file_msg_list[45].replace("\n", ""))
-            file_msg_list[45] = str(old_delay_time + int(delay_time)) + "\n"
+            if isinstance(delay_time, dict):
+                total_delay_time = {}
+                for sip, _time in delay_time.items():
+                    time = float(_time.replace("ms", ""))
+                    old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
+                    total_delay_time[sip] = str(time + old_delay_time) + "ms"
+                file_msg_list[delay_time_write_line - 1] = json.dumps(delay_time) + "\n"
+                file_msg_list[45] = json.dumps(total_delay_time) + "\n"
+
+            else:
+                file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
+                old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
+                file_msg_list[45] = str(old_delay_time + float(delay_time.replace("ms", ""))) + "ms\n"
         conf_file_path.seek(0)
         for line in file_msg_list:
             conf_file_path.write(line)
@@ -368,6 +343,8 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
         # videogroup
         mode_show_log_path = show_log_path + "start_group_video_call/" + mode + "/"
     if mode == "callee" and call_sip:
+        if os.path.exists(mode_show_log_path):
+            rmtree(mode_show_log_path)
         mode_show_log_path = mode_show_log_path + call_sip + "/"
     if not os.path.exists(mode_show_log_path):
         os.makedirs(mode_show_log_path)
@@ -417,7 +394,7 @@ def check_file(call_log_path):
     '''
     检查终端日志文件是否上传成功。
     '''
-    for i in range(5):
+    for i in range(15):
         if os.path.exists(call_log_path):
             return
         time.sleep(1)
@@ -559,3 +536,26 @@ def write_build_id(call_type, build_id):
         write_conf_file_path.seek(0)
         for line in file_msg_list:
             write_conf_file_path.write(line)
+
+
+def update_start_sign(call_sip, filepath):
+    file_bytes = os.path.getsize(filepath)
+    file_line = 0
+    with open(filepath, "rb") as call_filepath:
+        for line_b in call_filepath:
+            if line_b:
+                file_line += 1
+
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+    start_line = redis_client.hget(name=call_sip, key="start_line")
+    start_bytes = redis_client.hget(name=call_sip, key="start_bytes")
+    if not start_line or not start_bytes:
+        start_line, start_bytes = 0, 0
+    else:
+        start_line, start_bytes = int(start_line), int(start_bytes)
+    start_line += file_line
+    start_bytes += file_bytes
+    redis_client.hset(name=call_sip, key="start_line", value=start_line)
+    redis_client.hset(name=call_sip, key="start_bytes", value=start_bytes)
+    redis_client.close()
+    logging.debug("update start sign: {}".format(call_sip))

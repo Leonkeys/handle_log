@@ -9,6 +9,7 @@ from .tools import *
 import json
 from ESL import *
 from manage import app
+from concurrent.futures import ThreadPoolExecutor
 start_call_queue = queue.Queue(20)
 end_call_queue = queue.Queue(20)
 redis_host = app.config['REDIS_HOST']
@@ -20,6 +21,7 @@ local_file_path = app.config["LOCAL_FILE_PATH"]
 remote_log_path_list = app.config['REMOTE_LOG_PATH_LIST']
 
 redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+executor = ThreadPoolExecutor(10)
 
 
 @log.route("/upload", methods=["POST"])
@@ -59,6 +61,8 @@ def upload_file():
             if not os.path.exists(file_floder_path):
                 os.makedirs(file_floder_path)
             file.save(filepath)
+        # update_start_sign(call_sip, filepath)
+        executor.submit(update_start_sign, call_sip, filepath)
         return '{"filename":"%s"}' % filename
     return ' '
 

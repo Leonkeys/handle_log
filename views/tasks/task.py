@@ -6,11 +6,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from views.tasks.offline_logfile_rsync import rsync_remote_log
 
 job_list = [
-    # {
-    #     "func": "clean_line",
-    #     "trigger": "interval",
-    #     "seconds": 20
-    # },
+    {
+        "func": "clean_line",
+        "trigger": "cron",
+        "day_of_week": "*",
+        "hour": "22",
+        # "minute": "03",
+    },
 
     # {
     #     "func": "rsync_remote_log",

@@ -18,10 +18,12 @@ from subprocess import run, PIPE
 import glob
 import pymongo
 import chardet
+import threading
+
 
 from .common_log import mongo_client, LOG_TYPE, convert_time, parse_line_common, get_log_key_list 
 
-
+R = threading.Lock()
 
 # 文档中_id字段中需要的随机字符串
 random_char = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -82,7 +84,7 @@ class MyMongo(object):
     #         self.mongodb['registry'].remove({'timestamp': {'$lt': min_date}})
     #     except Exception as err:
     #         logging.error("{} delete documents before {} days ago error: {}".format(self.db_name, LIMIT, repr(err)))
-            
+
     def del_all_data(self):
         try:
             self.mongodb['main'].remove()
@@ -177,7 +179,7 @@ class Processor(object):
         #with open(self.log_name, 'r', encoding='iso8859-1') as f:
         with open(self.log_name, 'rb') as f:
             file_encode = chardet.detect(f.read())['encoding']
-            print(chardet.detect(f.read())['encoding'])
+        print("file_encode:", file_encode)
         fobj = open(self.log_name, encoding = file_encode)
         print("open:", self.log_name)
         fobj.seek(last_offset)
@@ -234,11 +236,10 @@ class Processor(object):
         self.mymongo.del_all_data()
 
 
-LOG_PATH = '/home/user/mywork2019/alarm/log_analyse_zj/common/log/part_log_test_1.log'
-LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/fs_normal_audio_s.log'
-LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eUE.log'
-LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/eMon.log'
 LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/navita-docker.log'
+LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/3050_log_3'
+LOG_PATH = '/home/user/mywork2019/alarm/git/log_handle/views/log/common/log/3500-emon.log'
+LOG_PATH = ''
 
 #NAVITA_START = ['any_sign',' ',1,' ','any_sign','1104',[[1,'switch_channel','any_sign','']],'sofia']
 #NAVITA_NORMAL_SINGLE_OVER_1 = ['any_sign',' ',5,':','','',[[1,'Dialplan','any_sign','Action'], [1,'fs_over','dispatcher_check','']],'']
@@ -251,7 +252,7 @@ EUE_END = ['','',6,' ','any_sign','MESSAGE ',[[1,'call_type','any_sign',' '], [0
 EUE_PER_AND_DELAY= ['','',6,' ','any_sign','STAT:',[[1,'per_and_delay','any_sign',' ='],[1,'value','any_sign','']],'\n']
 
 
-EMON_START = ['','',6,' ','any_sign','MESSAGE s',[[1,'emon_s_flag','any_sign',','],[0,'type','any_sign',','],[0,'from','any_sign',','],[0,'to','any_sign',' '],[1,'dir','any_sign','']],'\n']
+EMON_START = ['','',6,' ','any_sign','MESSAGE s',[[1,'emon_s_flag','any_sign',','],[0,'type','any_sign',','],[0,'from','any_sign',','],[0,'to','any_sign',','],[1,'noting','any_sign',':'],[1,'callid','any_sign',' '],[1,'dir','any_sign','']],'\n']
 
 EMON_END = ['','',6,' ','any_sign','MESSAGE ',[[1,'emon_e_flag','any_sign',','],[0,'type','any_sign',','],[0,'from','any_sign',','],[0,'to','any_sign',','],[1,'nothing','any_sign',':'], [1,'callid','any_sign','']],'\n']
 
@@ -276,19 +277,31 @@ ERROR_ERR_11 = ['','',1, ' ','','\[',[[3,'err','any_sign','']],'\n']
 ERROR_ERR_12 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'error','any_sign','']],'\n']
 ERROR_TT_13 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'timeout','any_sign','']],'\n']
 ERROR_FAL_14 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'fail','any_sign','']],'\n']
+ERROR_CRIT_15 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'crit','any_sign','']],'\n']
+ERROR_ALERT_16 = ['any_sign',' ',7, ' ','any_sign',' ',[[3,'alert','any_sign','']],'\n']
 
-LOG_FORMAT_LIST = [EUE_START, EUE_END, EUE_PER_AND_DELAY, EMON_START,EMON_END,EMON_PER,EMON_OUT_DELAY,EMON_IN_DELAY,ERROR_AUTH_1, ERROR_AUTH_2,ERROR_AUTH_3,ERROR_AUTH_4,ERROR_REF_5,ERROR_REF_6,ERROR_FAT_7,ERROR_WR_8,ERROR_INV_9,ERROR_ERR_10,ERROR_ERR_11,ERROR_ERR_12,ERROR_TT_13,ERROR_FAL_14]
+LOG_FORMAT_LIST = [EUE_START, EUE_END, EUE_PER_AND_DELAY, EMON_START,EMON_END,EMON_PER,EMON_OUT_DELAY,EMON_IN_DELAY,ERROR_AUTH_1, ERROR_AUTH_2,ERROR_AUTH_3,ERROR_AUTH_4,ERROR_REF_5,ERROR_REF_6,ERROR_FAT_7,ERROR_WR_8,ERROR_INV_9,ERROR_ERR_10,ERROR_ERR_11,ERROR_ERR_12,ERROR_TT_13,ERROR_FAL_14, ERROR_CRIT_15,ERROR_ALERT_16]
 
 
 ERROR_VALUE = dict()
-err_keys = ['needauth','authfailed','requirepass','auth','refuse','reject','fault','wrong','invalid','err','error','timeout','fail']
+err_keys = ['needauth','authfailed','requirepass','auth','refuse','reject','fault','wrong','invalid','err','error','timeout','fail','crit','alert']
 
-def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
-    print("enter analyse main()")
-    if log_name is None  or analyse_result is None:
-        analyse_result["analyse_error"] = "file name or key args none."
-        #print(analyse_result["error"])
+
+"""
+log_name:        需要解析的log文件
+log_format_list：用户输入的log格式列表
+private_name：   对log匹配结果进行私有业务处理的文件。除了后缀，文件名不能带'.'
+"""
+#mod_type:[caller,callee,nav,dis,api,mqtt]
+def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
+    print("enter analyse main():", mod_type, uuid)
+    analyse_result = {'log_valid':None,'state':None,'err_msg':None,'delay_time':None,'analyse_prog_err':None}
+    R.acquire()
+    if log_name == '' or mod_type == '':
+        analyse_result["analyse_prog_err"] = "file name or module name none."
+        logging.error("analyse prog err:{}".format(analyse_result['analyse_prog_err']))
         return analyse_result
+    start_t = time.time()
     processor = Processor(log_name,log_format_list, private_name)
     processor.go_process()
 
@@ -297,85 +310,110 @@ def analyse_main(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LI
         ERROR_VALUE.clear()
     ERROR_VALUE = {key:[] for key in err_keys}
     
+    #logging.info("recv args:uuid:{},mod_name:{}".format(uuid, mod_type))
     log_callid = caller = callee = call_t = None
     in_delay = out_delay = income_percent = outgo_percent = total_percent = ''
+    from_s = to_s = from_sip = to_sip = ''
     db_client = processor.mymongo.mongodb['main']
     cursor = db_client.find()
     li = list(cursor)
-    ex_flag = 0
-    print("list:-------",li)
-    if analyse_result['caller']['call_id'] is not None: 
-        caller_uuid = analyse_result['caller']['call_id']
-    if analyse_result['callee']['call_id'] is not None:
-        callee_uuid = analyse_result['callee']['call_id']
+    eue_flag = 0
+    emon_flag = 0
+    num_err = 0
+    #print("regular exp match result:-------",li)
+    #logging.info("Regular exp match result:{}".format(li))
+
     for i in li:
-        if 'emon_e_flag' in i.keys() or  'emon_s_flag' in i.keys():
-            ex_flag = ex_flag + 1
-            caller = i['from'][1:len(i['from'])-1]
-            callee = i['to'][1:len(i['to'])-1]
-            call_t = i['type'][1:len(i['type'])-1]
+        if 'emon_s_flag' in i.keys() or  ('emon_e_flag'in i.keys() and i['emon_e_flag'] == 'end'):
             log_callid = i['callid'][1:len(i['callid'])-1]
-            print("emon:",  ex_flag, caller, callee, call_t, log_callid)
-        if 'eue_s_flag' in i.keys() or 'eue_e_flag' in i.keys():
-            ex_flag = ex_flag + 1
-            caller = i['from'][1:len(i['from'])-1]
-            callee = i['to'][1:len(i['to'])-1]
-            call_t = i['call_type']
+            if (emon_flag < 2) and log_callid == uuid:
+                emon_flag = emon_flag + 1
+                #logging.info("emon end:from:{},to:{},type:{},id:{}".format(from_e,to_e,i['type'][1:len(i['type'])-1], log_callid))
+            else:
+                continue
+            print("emon_flag:", emon_flag)
+
+        if 'eue_s_flag' in i.keys() or 'eue_end_flag' in i.keys():
             log_callid = i['id'][1:len(i['id'])-1]
-            print("eue:",  ex_flag, caller, callee, call_t, log_callid)
+            if (eue_flag < 2) and (log_callid == uuid):
+                eue_flag = eue_flag + 1
+                #logging.info("eue:from:{},to:{},type:{},id:{}".format(i['from'][1:len(i['from'])-1], i['to'][1:len(i['to'])-1], i['call_type'],log_callid))
+            else:
+                continue
+            print("eue_flag:", eue_flag)
 
         if 'out_setup_time' in i.keys():
-            out_delay = i['setup_time']
-            print("emon out delay:", emon_delay)
+            if out_delay == '':
+                out_delay = i['out_setup_time']
+                print("emon out delay:", out_delay)
+            else:
+                continue
         if 'in_setup_time' in i.keys():
-            in_delay = i['setup_time']
-            print("emon in delay:", emon_delay)
+            if in_delay == '':
+                in_delay = i['in_setup_time']
+                print("emon in delay:", in_delay)
+            else:
+                continue
 
         if 'emon_per' in i.keys():
-            if i['emon_per'] == 'Incoming Confirmed ':
-                income_percent = i['emon_per_value']
-            if i['emon_per'] == 'Invite Confirmed ':
-                outgo_percent = i['emon_per_value']
-            if i['emon_per'] == 'Total Confirmed ':
-                total_percent = i['emon_per_value']
+            if income_percent and outgo_percent and total_percent:
+                continue
+            else:
+                if i['emon_per'] == 'Incoming Confirmed ':
+                    income_percent = i['emon_per_value']
+                if i['emon_per'] == 'Invite Confirmed ':
+                    outgo_percent = i['emon_per_value']
+                if i['emon_per'] == 'Total Confirmed ':
+                    total_percent = i['emon_per_value']
         if 'per_and_delay' in i.keys():
-            if i['per_and_delay'] == 'Incoming Set-up Time(Avg)':
-                in_delay = i['value']
-            if i['per_and_delay'] == 'Invite Set-up Time(Avg)':
-                out_delay = i['value']
-            if i['per_and_delay'] == 'Incoming Confirmed Percent':
-                income_percent = i['value'] + '%'
-            if i['per_and_delay'] == 'Invite Confirmed Percent':
-                outgo_percent = i['value'] + '%'
-            if i['per_and_delay'] == 'Total Confirmed Percent':
-                total_percent = i['value'] + '%'
+            if in_delay and out_delay and income_percent and outgo_percent and total_percent:
+                continue
+            else:
+                if i['per_and_delay'] == 'Incoming Set-up Time(Avg)':
+                    in_delay = i['value']
+                if i['per_and_delay'] == 'Invite Set-up Time(Avg)':
+                    out_delay = i['value']
+                if i['per_and_delay'] == 'Incoming Confirmed Percent':
+                    income_percent = i['value'] + '%'
+                if i['per_and_delay'] == 'Invite Confirmed Percent':
+                    outgo_percent = i['value'] + '%'
+                if i['per_and_delay'] == 'Total Confirmed Percent':
+                    total_percent = i['value'] + '%'
         for errkey in err_keys:
             if errkey in i.keys():
                 ERROR_VALUE[errkey].append(i[errkey])
-        if caller and  callee and call_t:
-            return 0
+            else:
+                continue
 
     #print("ERROR_VALUE: ", ERROR_VALUE)
-    print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay)
-    if log_callid == caller_uuid  and emon_flag == 2:
-         analyse_result[caller]['call_type'][0] = call_t
-         analyse_result[caller]['call_type'][1] = caller
-         analyse_result[caller]['call_type'][2] = callee
-         analyse_result[caller]['err_msg'] = ERROR_VALUE
-         analyse_result[caller]['delay_time'] = out_delay
-         return 0
+    end_t = time.time()
+    print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay, end_t - start_t)
+    #logging.info("percent :income:{},out:{},total:{},indelay:{},outdelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
+    if mod_type == 'caller' or mod_type == 'callee':
+        if emon_flag == 2 or eue_flag == 2:
+            analyse_result['log_valid'] = '1'
+            if mod_type == 'caller':
+                analyse_result['delay_time'] = out_delay
+            else:
+                analyse_result['delay_time'] = in_delay
+        else:
+            analyse_result['log_valid'] = '2'
+    else: #todo nav dis api mqtt
+        analyse_result['log_valid'] = '1'
+    for k in ERROR_VALUE:
+           if ERROR_VALUE[k] == []:
+               num_err += 1
+    print("num_err key::",num_err)
+    if num_err == len(ERROR_VALUE):
+       analyse_result['state'] = '1' #succ
+       analyse_result['err_msg'] = ERROR_VALUE
+    else:
+       analyse_result['state'] = '2' #fail
+       analyse_result['err_msg'] = ERROR_VALUE
 
-    if log_callid == callee_uuid  and emon_flag == 2:
-         analyse_result[callee]['call_type'][0] = call_t
-         analyse_result[callee]['call_type'][1] = caller
-         analyse_result[callee]['call_type'][2] = callee
-         analyse_result[callee]['err_msg'] = ERROR_VALUE
-         analyse_result[callee]['delay_time'] = in_delay
-         return 0
-    return 0
-  
+    R.release()
+    return analyse_result
 
-#FLAG_DICT = { "navita":{"log_valid":"1","call_type":"[type,caller,calleder]", "state":"0", "err_msg":"None","build_id":"<audiogroup*1111*>","delay_time":""}, "dis":{ "log_valid":"1", "dis_start":"no"}}
 
 def time_to_ms(ori_time):
     stime = ori_time.split(".")
@@ -387,48 +425,6 @@ def time_to_ms(ori_time):
     #print("stime_s", stime_s, "ori time", ori_time)
     return stime_s
 
-
-"""
-log_name:        需要解析的log文件
-log_format_list：用户输入的log格式列表
-private_name：   对log匹配结果进行私有业务处理的文件。除了后缀，文件名不能带'.'
-"""
-def analyse_main_1(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
-    print("enter analyse main()")
-    if log_name is None  or analyse_result is None:
-        analyse_result["analyse_error"] = "file name or key args none."
-        #print(analyse_result["error"])
-        return analyse_result
-    
-    processor = Processor(log_name,log_format_list, private_name)
-    processor.go_process()
-    ret_dict = processor.mymongo.mongodb['main'].find_one({"switch_channel":"New Channel "})
-    fs_start_time = ret_dict["time_local"]
-    if ret_dict is not None:
-        li=list(processor.mymongo.mongodb['main'].find())
-        for i_dict  in  li:
-            #print(i_dict)
-            if "call_type" in i_dict.keys():
-                analyse_result["navita"]["call_type"][0] = "singlecall"
-
-            if "caller" in i_dict.keys():
-                caller = i_dict["caller"]
-                analyse_result["navita"]["call_type"][1] = caller[6:10]
-                analyse_result["navita"]["call_type"][2] = caller[13:17]
-                fs_over_time = i_dict["time_local"]
-            if "fs_over" in i_dict.keys():
-                analyse_result["navita"]["state"] = "1"
-        fs_delay = time_to_ms(fs_over_time) - time_to_ms(fs_start_time)
-        analyse_result["navita"]["delay_time"] = str(fs_delay)
-
-    else:
-        analyse_result["navita"]["log_valid"] = "0" 
-        return
-
-    #print(analyse_result)
-    #log_key = processor.db_key_list()
-    #print(log_key)
-    #return analyse_result
 
 
 # def inquire_key_list(log_name):
@@ -446,28 +442,11 @@ def analyse_main_1(analyse_result,log_name=LOG_PATH, log_format_list=LOG_FORMAT_
 #     return [one for one in all_find if path.basename(one) not in EXCLUDE]
 
 
-# ----日志相关
-#LOG_PATH = '/home/jun/test/log_analy/code/geany_python_test/test1.log'
-#LOG_PATH = '/home/ftpuser/ftp/dis/dispatcher.log'
-#LOG_PATH = '/home/user/mywork2019/alarm/log_analyse_zj/common/log/part_log_test_1.log'
-#LOG_PATH = '/home/ftpuser/ftp/navita/testcgl.log'
-
-# 要排除的站点
-#EXCLUDE = ['log1.txt', 'log.txt']
-#line_str1 = '11-05 09:48:34.768 I/audio_hw_primary( 1405): out_set_parameters: kvpairs = routing=0'
-#LOG_FORMAT_1 = ['','',1,' ','','',[[1,'module','any_sign',':'],[0,'out_set_parameters','any_sign','']],'']
-#line_str = '2018-09-16 10:11:04:hwnsa:tgt cap,recv TRF_REQ,negotiate switchType:2,sfn:500'
-#LOG_FORMAT_2 = ['','',2,':','','',[[0,'hwnsa','any_sign',','],[1,'recv','any_sign',',negotiate'],[0,'switchType','any_sign',','],[0,'sfn','any_sign','']],'']
-#02-10 18:28:43.011 D/dalvikvm( 2529): GC_CONCURRENT freed 1924K, 37% free 5802K/9152K, paused 4ms+7ms, total 57ms
-#LOG_FORMAT_3 = ['','',1,' ','any_sign',':',[[1,'free','any_sign',','],[1,'free_1','any_sign',','],[1,'paused','any_sign',','],[1,'tatal','any_sign','']],'']
-#LOG_FORMAT_LIST = [LOG_FORMAT_3]
-
-
 #if __name__ == "__main__":
 #    db_delete(LOG_PATH)
 #    if len(sys_argv) > 1 and sys_argv[1] == '-r':
 #        db_delete(LOG_PATH)
 #    else:
-#        analyse_main(LOG_PATH, LOG_FORMAT_LIST, "general.py")
+#        analyse_main('caller', 'CpER0ExQDF',LOG_PATH, LOG_FORMAT_LIST, "general.py")
 #        li = inquire_key_list(LOG_PATH)
 #        print(li)

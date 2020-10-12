@@ -200,6 +200,7 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
 def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
     public_msg(core_uuid, callee_username_list)
     handle_info = {"log_valid": "1", "state": {}, "err_msg": "", "delay_time": {}, "analyse_prog_err": ""}
+    clean_log_file(call_type)
     if isinstance(callee_username_list, list):
         for sip in callee_username_list:
             log_list = list()
@@ -208,6 +209,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
             if msg:
                 handle_info["err_msg"] = msg
                 handle_info.get("state")[sip] = 2
+                logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
                 write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
                 continue
             # start_line_str, start_bytes_str = _get_start_sign(sip)
@@ -223,16 +225,19 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
             # _set_start_sign(sip, start_line, start_bytes)
             # handle_info = com.analyse_main(log_result, callee_log_tmp_file_path)
             print("callee", handle_info)
+            logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
             handle_info.get("state")[sip] = 1
             handle_info.get("delay_time")[sip] = "1432.22ms"
             write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
             call_log_backup(callee_log_tmp_file_path)
         write_conf("callee", handle_info, call_type=call_type)
+        logging.debug("handle log ===============END===============")
     else:
         msg = "log_handle is err please call manager(callee mode need callee_username_list is a list not other type)"
         handle_info["err_msg"] = msg
         handle_info["state"] = 2
-        return write_node(handle_info, "callee", call_type, [])
+        write_node(handle_info, "callee", call_type, [])
+        logging.warning("handle log ==============END==============")
 
 
 def write_node(handle_msg, mode, call_type, log_list):
@@ -343,8 +348,6 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
         # videogroup
         mode_show_log_path = show_log_path + "start_group_video_call/" + mode + "/"
     if mode == "callee" and call_sip:
-        if os.path.exists(mode_show_log_path):
-            rmtree(mode_show_log_path)
         mode_show_log_path = mode_show_log_path + call_sip + "/"
     if not os.path.exists(mode_show_log_path):
         os.makedirs(mode_show_log_path)
@@ -559,3 +562,28 @@ def update_start_sign(call_sip, filepath):
     redis_client.hset(name=call_sip, key="start_bytes", value=start_bytes)
     redis_client.close()
     logging.debug("update start sign: {}".format(call_sip))
+
+
+def clean_log_file(call_type):
+
+    if call_type in ["audiosingle", "singlecall"]:
+        mode_show_log_path = show_log_path + "start_single_audio_call/callee/"
+    elif call_type == "videosingle":
+        mode_show_log_path = show_log_path + "start_single_video_call/callee/"
+    elif call_type == "audiogroup":
+        mode_show_log_path = show_log_path + "start_group_audio_call/callee/"
+    else:
+        # videogroup
+        mode_show_log_path = show_log_path + "start_group_video_call/callee/"
+
+    # if os.path.exists(mode_show_log_path):
+    #     rmtree(mode_show_log_path + "/*")
+    if os.path.exists(mode_show_log_path):
+        ls_log_path = os.listdir(mode_show_log_path)
+
+        for _file in ls_log_path:
+            c_path = os.path.join(mode_show_log_path, _file)
+            if os.path.isdir(c_path):
+                rmtree(c_path)
+            else:
+                os.remove(c_path)

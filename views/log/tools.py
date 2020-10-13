@@ -65,8 +65,8 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
         call_log_backup(caller_log_tmp_file_path)
         return write_node(caller_log, "caller", call_type, [])
     log_list = list()
-    # handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
-    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.1ms", "analyse_prog_err": ""}
+    handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
+    # handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.1ms", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
     # start_line_str, start_bytes_str = _get_start_sign(caller_username)
     # logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
@@ -138,8 +138,7 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
                     log_list.append(line_b)
                     new_local_file.write(line_b)
     set_server_log_line(dis_mode, new_size)
-    handle_info = com.analyse_main("dis", log_name=local_log)
-    # handle_info = com.analyse_main("dis", log_name=local_log, start_line=start_line)
+    handle_info = com.analyse_main("dis", log_name=local_log, offset_bytes=int(start_bytes))
     print(dis_mode, handle_info)
     write_node(handle_info, dis_mode, call_type, log_list)
 
@@ -169,8 +168,7 @@ def api(core_uuid, unique_id_list, filename, call_type):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     set_server_log_line(api_mode, new_size)
-    handle_info = com.analyse_main("api", log_name=new_local_log)
-    # handle_info = com.analyse_main("api", log_name=new_local_log,start_line=start_line)
+    handle_info = com.analyse_main("api", log_name=new_local_log, offset_bytes=int(start_bytes))
     print(api_mode, handle_info)
     write_node(handle_info, api_mode, call_type, log_list)
 
@@ -197,8 +195,7 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
             log_list.append(line)
 
     set_server_log_line(mqtt_mode, new_size)
-    handle_info = com.analyse_main("mqtt", log_name=local_log)
-    # handle_info = com.analyse_main("mqtt", log_name=local_log, start_bytes=start_bytes)
+    handle_info = com.analyse_main("mqtt", log_name=local_log, offset_bytes=int(start_bytes))
     print(mqtt_mode, handle_info)
     write_node(handle_info, mqtt_mode, call_type, log_list)
 
@@ -229,7 +226,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                         log_list.append(line_b)
                         # start_line += 1
             # _set_start_sign(sip, start_line, start_bytes)
-            # handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
+            handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
             print("callee", handle_info)
             logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
             # handle_info.get("state")[sip] = 1
@@ -609,7 +606,7 @@ def get_server_log_line(mode):
     if not start_line:
         start_line = 0
     redis_client.close()
-    return start_line, start_line
+    return start_line
 
 # if __name__ == '__main__':
     # print(get_server_log_line("dispatcher"))

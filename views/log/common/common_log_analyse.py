@@ -19,7 +19,8 @@ import glob
 import pymongo
 import chardet
 import threading
-
+import paramiko
+import codecs
 
 from .common_log import mongo_client, LOG_TYPE, convert_time, parse_line_common, get_log_key_list 
 
@@ -164,7 +165,7 @@ class Processor(object):
         self.processed_num = self.invalid_log = 0
         self.main_stage = []
 
-    def go_process(self):
+    def go_process(self, offset_bytes):
         """开始处理日志文件"""
         if LOG_TYPE == 'plaintext':
             logobj = LogPlainText(self.log_name)
@@ -173,43 +174,38 @@ class Processor(object):
             return
               
         #print('db_name:',self.db_name, 'find:', self.mymongo.mongodb[self.mymongo.mongodb.list_collection_names(session=None)[0]].find_one({"inode" : 1051674}))
-
-        last_offset = 0
+        if offset_bytes is not None and isinstance(offset_bytes, int):
+            last_offset = offset_bytes
+        else:
+            last_offset = 0
         # 打开文件,找到相应的offset进行处理
-        #with open(self.log_name, 'r', encoding='iso8859-1') as f:
-        with open(self.log_name, 'rb') as f:
-            file_encode = chardet.detect(f.read())['encoding']
-        print("file_encode:", file_encode)
-        fobj = open(self.log_name, encoding = file_encode)
-        print("open:", self.log_name)
-        fobj.seek(last_offset)
-        parsed_offset = last_offset
-        for line_str in fobj:
-            #print("line:", line_str)
-            if last_offset >= logobj.cur_size:
-                fobj.close()
-                return
-            parsed_offset += len(line_str.encode('utf8')) #不转换的话，汉字被当成一个字符
-            line_res,match_id = logobj.parse_line(line_str, self.log_format_list)            
-            if not line_res or not line_res['time_local']:
-                self.invalid_log += 1
-                #print("invalid_log",  self.invalid_log)
-                continue
-
-            date, hour, minute, second = line_res['time_local']
-            if date == '0':
-               line_res['time_local'] = str(hour + minute + second)
-            else:
-               line_res['time_local'] = str(date + hour + minute + second)
-            
-            # 分钟粒度交替时: 通一分钟内的log计数，为后续查询显示顺序做准备
-            if self.this_h_m_s != hour + minute + second:
-               self.processed_num = 0
-            self.processed_num += 1
-            self.this_h_m_s = hour + minute + second
-            self._append_line_to_main_stage(line_res,match_id)  # 对每一行的解析结果进行处理
-
-        fobj.close()
+        #with open(self.log_name, 'rb') as f:
+        #    file_encode = chardet.detect(f.read())['encoding']
+        #print("file_encode:", file_encode)
+        with codecs.open(self.log_name) as fobj:
+            print("open:", self.log_name)
+            fobj.seek(last_offset)
+            parsed_offset = last_offset
+            for line_str in fobj:
+                #print("line:", line_str)
+                if last_offset >= logobj.cur_size:
+                    return
+                parsed_offset += len(line_str.encode('utf8')) #不转换的话，汉字被当成一个字符
+                line_res,match_id = logobj.parse_line(line_str, self.log_format_list)
+                if not line_res or not line_res['time_local']:
+                    self.invalid_log += 1
+                    continue
+                date, hour, minute, second = line_res['time_local']
+                if date == '0':
+                    line_res['time_local'] = str(hour + minute + second)
+                else:
+                    line_res['time_local'] = str(date + hour + minute + second)
+                    # 分钟粒度交替时: 通一分钟内的log计数，为后续查询显示顺序做准备
+                if self.this_h_m_s != hour + minute + second:
+                    self.processed_num = 0
+                self.processed_num += 1
+                self.this_h_m_s = hour + minute + second
+                self._append_line_to_main_stage(line_res,match_id)  # 对每一行的解析结果进行处理
         last_key_list=''
 
         # 最后可能会存在一部分已解析但未达到分钟交替的行, 需要额外逻辑进行入库
@@ -293,7 +289,7 @@ log_format_list：用户输入的log格式列表
 private_name：   对log匹配结果进行私有业务处理的文件。除了后缀，文件名不能带'.'
 """
 #mod_type:[caller,callee,nav,dis,api,mqtt]
-def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
+def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
     print("enter analyse main():", mod_type, uuid)
     analyse_result = {'log_valid':None,'state':None,'err_msg':None,'delay_time':None,'analyse_prog_err':None}
     R.acquire()
@@ -303,7 +299,7 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, log_format_list=LOG_FORM
         return analyse_result
     start_t = time.time()
     processor = Processor(log_name,log_format_list, private_name)
-    processor.go_process()
+    processor.go_process(offset_bytes)
 
     global ERROR_VALUE
     if ERROR_VALUE:
@@ -389,6 +385,13 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, log_format_list=LOG_FORM
     end_t = time.time()
     print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay, end_t - start_t)
     #logging.info("percent :income:{},out:{},total:{},indelay:{},outdelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
+    remote_docker_stat()
+
+    for k in ERROR_VALUE:
+        if ERROR_VALUE[k] == []:
+            num_err += 1
+    print("num_err key::",num_err)
+
     if mod_type == 'caller' or mod_type == 'callee':
         if emon_flag == 2 or eue_flag == 2:
             analyse_result['log_valid'] = '1'
@@ -398,18 +401,53 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, log_format_list=LOG_FORM
                 analyse_result['delay_time'] = in_delay
         else:
             analyse_result['log_valid'] = '2'
-    else: #todo nav dis api mqtt
+        if num_err == len(ERROR_VALUE):
+            analyse_result['state'] = '1' #succ
+            analyse_result['err_msg'] = ERROR_VALUE
+        else:
+            analyse_result['state'] = '2' #fail
+            analyse_result['err_msg'] = ERROR_VALUE
+    elif mod_type == 'nav' or mod_type == 'dis': #todo nav dis api mqtt
         analyse_result['log_valid'] = '1'
-    for k in ERROR_VALUE:
-           if ERROR_VALUE[k] == []:
-               num_err += 1
-    print("num_err key::",num_err)
-    if num_err == len(ERROR_VALUE):
-       analyse_result['state'] = '1' #succ
-       analyse_result['err_msg'] = ERROR_VALUE
-    else:
-       analyse_result['state'] = '2' #fail
-       analyse_result['err_msg'] = ERROR_VALUE
+        if num_err == len(ERROR_VALUE) and docker_srv_name[0] not in docker_err.keys() and docker_srv_name[1] not in docker_err.keys() and docker_srv_name[5] not in docker_err.keys() and docker_srv_name[6] not in docker_err.keys():
+            analyse_result['state'] = '1' #succ
+        else:
+            analyse_result['state'] = '2' #fail
+            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+    elif mod_type == 'api':
+        analyse_result['log_valid'] = '1'
+        if num_err == len(ERROR_VALUE) and docker_srv_name[3] not in docker_err.keys() and docker_srv_name[4] not in docker_err.keys() and docker_srv_name[7] not in docker_err.keys():
+            analyse_result['state'] = '1'
+        else:
+            analyse_result['state'] = '2'
+            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+
+    elif mod_type == 'mqtt':
+        analyse_result['log_valid'] = '1'
+        if num_err == len(ERROR_VALUE) and docker_srv_name[2] not in docker_err.keys():
+            analyse_result['state'] = '1'
+        else:
+            analyse_result['state'] = '2'
+            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+    else: #todo nav dis api mqtt
+        print("mode type error!")
+
 
     R.release()
     return analyse_result
@@ -424,6 +462,43 @@ def time_to_ms(ori_time):
     stime_s = int(time.mktime(time_obj_s.timetuple()) * 1000.0 + time_obj_s.microsecond / 1000.0)
     #print("stime_s", stime_s, "ori time", ori_time)
     return stime_s
+
+
+docker_srv_name =  ['navita', 'navita_stream', 'TruncMQTT', 'EUHTRUNCK', 'url_map', 'storage-group1', 'tracker', 'mysql']
+docker_err = dict()
+
+hostname = '192.168.22.90'
+username = 'root'
+password = 'nuard@@'
+port = 22
+docker_err = dict()
+
+def remote_docker_stat():
+    err_ret = ret = None
+    s = paramiko.SSHClient()
+    s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    s.connect(hostname=hostname, port=port, username=username, password=password)
+    cmd_get_docker_name = "sudo docker ps | awk '{print $NF}'"
+    stdin,stdout,stderr = s.exec_command(cmd_get_docker_name)
+    err_ret = stderr.read().decode('utf-8')
+    status = stdout.channel.recv_exit_status()
+    if(status == 1):
+        print("cmd awk return nothing: ", err_ret)
+    else:
+        ret = stdout.read().decode('utf-8')
+        li = ret.strip('\nNAMES').split('\n')
+    print("cmd_get_docker_name result:", ret, li)
+    for i in li:
+        cmd_get_docker_err = 'sudo docker logs  --tail 1000 %s 2>&1 | grep \' error \'' % i
+        stdin,stdout,stderr = s.exec_command(cmd_get_docker_err)
+        err_ret = stderr.read().decode('utf-8')
+        status = stdout.channel.recv_exit_status()
+        if(status == 1):
+            print("cmd grep return nothing: ", err_ret, i)
+        else:
+            ret = stdout.read().decode('utf-8')
+            print("cmd_get_docker_err result:", ret)
+            docker_err[i] = ret
 
 
 

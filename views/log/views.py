@@ -131,34 +131,40 @@ def put_msg(core_uuid, msg_dict):
 def log_handle():
     print("log_handle-start")
     while 1:
-        create_channel_dict_l = start_call_queue.get()
-        call_type, build_id = get_call_type(create_channel_dict_l)
-        # TODO bug ignore
-        write_build_id(call_type, build_id)
-        caller_username, callee_username_list = get_call_username(create_channel_dict_l)
-        # caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
-        # callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
-        core_uuid = create_channel_dict_l[0].get("Core-UUID")
-        caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
-        unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
+        call_type = None
+        build_id = None
+        try:
+            create_channel_dict_l = start_call_queue.get()
+            call_type, build_id = get_call_type(create_channel_dict_l)
+        except:
+            logging.error("error")
+        if call_type and build_id:
 
-        caller(core_uuid, caller_username, call_type, caller_sip_uuid)
-        for func, remote_log_path in remote_log_path_list.items():
-            logging.debug("func: %s" % func)
-            if func == "mqtt":
-                remote_log_path = get_mqtt_log_path(remote_log_path)
-                filename = "emqttd.log"
-                remote_log_path = remote_log_path + "/" + filename
-            elif func == "api":
-                filename = time.strftime("%Y%m%d", time.localtime()) + ".log"
-                remote_log_path = remote_log_path + filename
-            else:  # str
-                filename = remote_log_path.split("/")[-1]
-            if remote_log_path:
-                get_server_log(remote_log_path)
-            call_func(func, core_uuid, unique_id_list, filename, call_type)
+            write_build_id(call_type, build_id)
+            caller_username, callee_username_list = get_call_username(create_channel_dict_l)
+            # caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
+            # callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
+            core_uuid = create_channel_dict_l[0].get("Core-UUID")
+            caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
+            unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
 
-        callee(core_uuid, callee_username_list, call_type, callee_sip_uuid)
+            caller(core_uuid, caller_username, call_type, caller_sip_uuid)
+            for func, remote_log_path in remote_log_path_list.items():
+                logging.debug("func: %s" % func)
+                if func == "mqtt":
+                    remote_log_path = get_mqtt_log_path(remote_log_path)
+                    filename = "emqttd.log"
+                    remote_log_path = remote_log_path + "/" + filename
+                elif func == "api":
+                    filename = time.strftime("%Y%m%d", time.localtime()) + ".log"
+                    remote_log_path = remote_log_path + filename
+                else:  # str
+                    filename = remote_log_path.split("/")[-1]
+                if remote_log_path:
+                    get_server_log(remote_log_path)
+                call_func(func, core_uuid, unique_id_list, filename, call_type)
+
+            callee(core_uuid, callee_username_list, call_type, callee_sip_uuid)
 
 
 if __name__ == '__main__':

@@ -65,7 +65,7 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
         call_log_backup(caller_log_tmp_file_path)
         return write_node(caller_log, "caller", call_type, [])
     log_list = list()
-    # com.analyse_main(log_result, caller_log_tmp_file_path, variable_sip_call_id)
+    # handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
     handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.1ms", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
     # start_line_str, start_bytes_str = _get_start_sign(caller_username)
@@ -108,8 +108,7 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
                     if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
-    # com.analyse_main(log_result, local_log)
-    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.2ms", "analyse_prog_err": ""}
+    handle_info = com.analyse_main("nav", log_name=local_log)
     mode = "freeswitch"
     print(mode, handle_info)
     write_node(handle_info, mode, call_type, log_list)
@@ -124,24 +123,25 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
     log_list = list()
     if not unique_id_list:
         return
+    dis_mode = "dispatcher"
     local_file = local_file_path + "/" + filename
-    local_log = local_file_path + "/dispatcher/" + core_uuid
-    if not os.path.exists(local_file_path + "/dispatcher"):
-        os.makedirs(local_file_path + "/dispatcher")
+    local_log = local_file_path + "/" + dis_mode + "/" + core_uuid
+    if not os.path.exists(local_file_path + "/" + dis_mode):
+        os.makedirs(local_file_path + "/" + dis_mode)
     logging.debug("remote log file path:%s, local log filepath:%s." % (local_file, local_log))
+    start_bytes = get_server_log_line(dis_mode)
+    new_size = os.path.getsize(local_log)
     with open(local_file, "rb") as old_local_file:
         with open(local_log, "wb") as new_local_file:
             for line_b in old_local_file:
                 if line_b:
-                    # line_str = str(line_b, encoding="utf-8")
-                    # if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                     log_list.append(line_b)
                     new_local_file.write(line_b)
-    # com.analyse_main(log_result, local_log)
-    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.3ms", "analyse_prog_err": ""}
-    mode = "dispatcher"
-    print(mode, handle_info)
-    write_node(handle_info, mode, call_type, log_list)
+    set_server_log_line(dis_mode, new_size)
+    handle_info = com.analyse_main("dis", log_name=local_log)
+    # handle_info = com.analyse_main("dis", log_name=local_log, start_line=start_line)
+    print(dis_mode, handle_info)
+    write_node(handle_info, dis_mode, call_type, log_list)
 
 
 def api(core_uuid, unique_id_list, filename, call_type):
@@ -151,11 +151,14 @@ def api(core_uuid, unique_id_list, filename, call_type):
     log_list = list()
     if not unique_id_list:
         return
+    api_mode = "api"
     old_local_file = local_file_path + "/" + filename
-    new_local_log = local_file_path + "/api/" + core_uuid
-    if not os.path.exists(local_file_path + "/api"):
-        os.makedirs(local_file_path + "/api")
+    new_local_log = local_file_path + "/" + api_mode + "/" + core_uuid
+    if not os.path.exists(local_file_path + "/" + api_mode):
+        os.makedirs(local_file_path + "/" + api_mode)
 
+    start_bytes = get_server_log_line(api_mode)
+    new_size = os.path.getsize(new_local_log)
     logging.debug("remote log file path:%s, local log filepath:%s." % (old_local_file, new_local_log))
     with open(old_local_file, "rb") as old_local_file:
         with open(new_local_log, "wb") as new_local_file:
@@ -165,11 +168,11 @@ def api(core_uuid, unique_id_list, filename, call_type):
                     if line_str:
                         log_list.append(line_b)
                         new_local_file.write(line_b)
-    # com.analyse_main(log_result, new_local_log)
-    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.3ms", "analyse_prog_err": ""}
-    mode = "api"
-    print(mode, handle_info)
-    write_node(handle_info, mode, call_type, log_list)
+    set_server_log_line(api_mode, new_size)
+    handle_info = com.analyse_main("api", log_name=new_local_log)
+    # handle_info = com.analyse_main("api", log_name=new_local_log,start_line=start_line)
+    print(api_mode, handle_info)
+    write_node(handle_info, api_mode, call_type, log_list)
 
 
 def mqtt(core_uuid, unique_id_list, filename, call_type):
@@ -180,21 +183,24 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
     log_list = list()
     if not unique_id_list:
         return
-
+    mqtt_mode = "mqtt"
     local_file = local_file_path + "/" + filename
-    local_log = local_file_path + "/mqtt/" + core_uuid
-    if not os.path.exists(local_file_path + "/mqtt"):
-        os.makedirs(local_file_path + "/mqtt")
+    local_log = local_file_path + "/" + mqtt_mode + "/" + core_uuid
+    if not os.path.exists(local_file_path + "/" + mqtt_mode):
+        os.makedirs(local_file_path + "/" + mqtt_mode)
     move(local_file, local_log)
     logging.debug("remote log file path:%s, local log filepath:%s." % (local_file, local_log))
+    start_bytes = get_server_log_line(mqtt_mode)
+    new_size = os.path.getsize(local_log)
     with open(local_log, "rb") as local_log_obj:
         for line in local_log_obj:
             log_list.append(line)
-    # com.analyse_main(log_result, local_log)
-    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.5ms", "analyse_prog_err": ""}
-    mode = "mqtt"
-    print(mode, handle_info)
-    write_node(handle_info, mode, call_type, log_list)
+
+    set_server_log_line(mqtt_mode, new_size)
+    handle_info = com.analyse_main("mqtt", log_name=local_log)
+    # handle_info = com.analyse_main("mqtt", log_name=local_log, start_bytes=start_bytes)
+    print(mqtt_mode, handle_info)
+    write_node(handle_info, mqtt_mode, call_type, log_list)
 
 
 def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
@@ -223,11 +229,11 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                         log_list.append(line_b)
                         # start_line += 1
             # _set_start_sign(sip, start_line, start_bytes)
-            # handle_info = com.analyse_main(log_result, callee_log_tmp_file_path)
+            # handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
             print("callee", handle_info)
             logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
-            handle_info.get("state")[sip] = 1
-            handle_info.get("delay_time")[sip] = "1432.22ms"
+            # handle_info.get("state")[sip] = 1
+            # handle_info.get("delay_time")[sip] = "1432.22ms"
             write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
             call_log_backup(callee_log_tmp_file_path)
         write_conf("callee", handle_info, call_type=call_type)
@@ -282,7 +288,7 @@ def write_conf(mode, handle_msg, call_type=None):
         # callee
         mode_write_line = 14
         delay_time_write_line = 44
-    if call_type in ["singlecall", "audiosingle"]:
+    if call_type == "audiosingle":
         conf_file_name = "start_single_audio_call.conf"
     elif call_type == "videosingle":
         conf_file_name = "start_single_video_call.conf"
@@ -338,7 +344,7 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
     err_msg = handle_msg.get("err_msg")
     if not call_type:
         call_type = handle_msg.get("call_type")[0]
-    if call_type in ["audiosingle", "singlecall"]:
+    if call_type == "audiosingle":
         mode_show_log_path = show_log_path + "start_single_audio_call/" + mode + "/"
     elif call_type == "videosingle":
         mode_show_log_path = show_log_path + "start_single_video_call/" + mode + "/"
@@ -353,6 +359,8 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
         os.makedirs(mode_show_log_path)
     logging.debug("%s write file path:%s" % (mode, mode_show_log_path))
     if err_msg:
+        if isinstance(err_msg, dict):
+            err_msg = json.dumps(err_msg)
         err_log_file = mode_show_log_path + "err_log"
         with open(err_log_file, "w") as err_log_file:
             err_log_file.write(err_msg)
@@ -587,3 +595,21 @@ def clean_log_file(call_type):
                 rmtree(c_path)
             else:
                 os.remove(c_path)
+
+
+def set_server_log_line(mode, end_line):
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=2, decode_responses=True)
+    redis_client.set(mode, end_line)
+    redis_client.close()
+
+
+def get_server_log_line(mode):
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=2, decode_responses=True)
+    start_line = redis_client.get(mode)
+    if not start_line:
+        start_line = 0
+    redis_client.close()
+    return start_line, start_line
+
+# if __name__ == '__main__':
+    # print(get_server_log_line("dispatcher"))

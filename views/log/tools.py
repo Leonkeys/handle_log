@@ -12,8 +12,8 @@ from paho.mqtt import client as mqtt_client
 from .common import common_log_analyse as com
 
 # DB_CONNECT = app.config['DB_CONNECT']
-host = app.config["HOST"]
-port = app.config["PORT"]
+host = app.config["LOCAL_HOST"]
+port = app.config["LOCAL_PORT"]
 redis_host = app.config["REDIS_HOST"]
 redis_port = app.config["REDIS_PORT"]
 server_ip = app.config["SERVER_IP"]

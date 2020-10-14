@@ -28,5 +28,5 @@ if __name__ == '__main__':
     Thread(target=task.core).start()
     Thread(target=views.listen_ESL).start()
     Thread(target=views.log_handle).start()
-    app.run(host=app.config["HOST"], port=app.config["PORT"], debug=False, threaded=True)
+    app.run(host=app.config["RUN_HOST"], port=app.config["RUN_PORT"], debug=app.config["DEBUG"], threaded=True)
 

@@ -120,7 +120,7 @@ class LogPlainText(LogBase):
 
 
 class Processor(object):
-    def __init__(self, log_name, log_format_list='', private_name='general.py'):
+    def __init__(self, mod_type, log_name, log_offset,log_format_list='', private_name='general.py'):
         """log_name: 日志文件名"""
         self.log_name = log_name
         self.log_format_list = log_format_list
@@ -134,6 +134,8 @@ class Processor(object):
         self.bulk_documents = []  # 作为每分钟文档的容器, 累积BATCH_INSERT个文档时, 进行一次批量插入
         self.this_h_m_s = ''  # 当前处理的一秒钟, 格式: 010101(1时1分1秒)
         self.invalid_log = 0  # 目前解析不了的log
+        self.offset_bytes = log_offset
+        self.log_type = mod_type
 
     def _append_line_to_main_stage(self, line_res, match_id):
         work_dynamic_module = ''
@@ -165,7 +167,7 @@ class Processor(object):
         self.processed_num = self.invalid_log = 0
         self.main_stage = []
 
-    def go_process(self, offset_bytes):
+    def go_process(self):
         """开始处理日志文件"""
         if LOG_TYPE == 'plaintext':
             logobj = LogPlainText(self.log_name)
@@ -174,20 +176,25 @@ class Processor(object):
             return
               
         #print('db_name:',self.db_name, 'find:', self.mymongo.mongodb[self.mymongo.mongodb.list_collection_names(session=None)[0]].find_one({"inode" : 1051674}))
-        if offset_bytes is not None and isinstance(offset_bytes, int):
-            last_offset = offset_bytes
+        if self.offset_bytes is not None and isinstance(self.offset_bytes, int):
+            last_offset = self.offset_bytes
         else:
             last_offset = 0
         # 打开文件,找到相应的offset进行处理
         #with open(self.log_name, 'rb') as f:
         #    file_encode = chardet.detect(f.read())['encoding']
         #print("file_encode:", file_encode)
+        mqtt_line = ''
         with codecs.open(self.log_name) as fobj:
             print("open:", self.log_name)
             fobj.seek(last_offset)
             parsed_offset = last_offset
             for line_str in fobj:
                 #print("line:", line_str)
+                if self.log_type == 'mqtt':
+                    mqtt_line = line_str.split(',')
+                    if ''.join(mqtt_line).strip().isdecimal() or line_str.replace(' ', '') == '\n':
+                        continue
                 if last_offset >= logobj.cur_size:
                     return
                 parsed_offset += len(line_str.encode('utf8')) #不转换的话，汉字被当成一个字符
@@ -298,8 +305,8 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
         logging.error("analyse prog err:{}".format(analyse_result['analyse_prog_err']))
         return analyse_result
     start_t = time.time()
-    processor = Processor(log_name,log_format_list, private_name)
-    processor.go_process(offset_bytes)
+    processor = Processor(mod_type, log_name, offset_bytes, log_format_list, private_name)
+    processor.go_process()
 
     global ERROR_VALUE
     if ERROR_VALUE:
@@ -413,10 +420,10 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
             analyse_result['state'] = '1' #succ
         else:
             analyse_result['state'] = '2' #fail
-            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
         analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
     elif mod_type == 'api':
         analyse_result['log_valid'] = '1'
@@ -424,11 +431,11 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
             analyse_result['state'] = '1'
         else:
             analyse_result['state'] = '2'
-            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
         analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
 
     elif mod_type == 'mqtt':
@@ -437,13 +444,13 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
             analyse_result['state'] = '1'
         else:
             analyse_result['state'] = '2'
-            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
-            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+        docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
         analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
     else: #todo nav dis api mqtt
         print("mode type error!")

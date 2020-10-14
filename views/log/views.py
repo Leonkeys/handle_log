@@ -61,7 +61,7 @@ def upload_file():
             if not os.path.exists(file_floder_path):
                 os.makedirs(file_floder_path)
             file.save(filepath)
-        # update_start_sign(call_sip, filepath)
+        update_start_sign(call_sip, filepath)
         executor.submit(update_start_sign, call_sip, filepath)
         return '{"filename":"%s"}' % filename
     return ' '

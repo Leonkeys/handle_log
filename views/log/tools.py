@@ -95,23 +95,27 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
     log_list = list()
     if not unique_id_list:
         return
+    freeswitch_mode = "freeswitch"
     local_file = local_file_path + "/" + filename
     local_log = local_file_path + "/freeswitch/" + core_uuid
     if not os.path.exists(local_file_path + "/freeswitch"):
         os.makedirs(local_file_path + "/freeswitch")
+    start_bytes = get_server_log_line(freeswitch_mode)
+    new_size = os.path.getsize(local_log)
     with open(local_file, "rb") as old_local_file:
 
         with open(local_log, "wb") as new_local_file:
+            old_local_file.seek(int(start_bytes))
             for line_b in old_local_file:
                 if line_b:
                     line_str = str(line_b, encoding="utf-8")
                     if line_str and any(channel_uuid in line_str for channel_uuid in unique_id_list):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
+    set_server_log_line(freeswitch_mode, new_size)
     handle_info = com.analyse_main("nav", log_name=local_log)
-    mode = "freeswitch"
-    print(mode, handle_info)
-    write_node(handle_info, mode, call_type, log_list)
+    # print(freeswitch_mode, handle_info)
+    write_node(handle_info, freeswitch_mode, call_type, log_list)
 
 
 def dispatcher(core_uuid, unique_id_list, filename, call_type):
@@ -139,7 +143,7 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
                     new_local_file.write(line_b)
     set_server_log_line(dis_mode, new_size)
     handle_info = com.analyse_main("dis", log_name=local_log, offset_bytes=int(start_bytes))
-    print(dis_mode, handle_info)
+    # print(dis_mode, handle_info)
     write_node(handle_info, dis_mode, call_type, log_list)
 
 
@@ -169,7 +173,7 @@ def api(core_uuid, unique_id_list, filename, call_type):
                         new_local_file.write(line_b)
     set_server_log_line(api_mode, new_size)
     handle_info = com.analyse_main("api", log_name=new_local_log, offset_bytes=int(start_bytes))
-    print(api_mode, handle_info)
+    # print(api_mode, handle_info)
     write_node(handle_info, api_mode, call_type, log_list)
 
 
@@ -196,7 +200,7 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
 
     set_server_log_line(mqtt_mode, new_size)
     handle_info = com.analyse_main("mqtt", log_name=local_log, offset_bytes=int(start_bytes))
-    print(mqtt_mode, handle_info)
+    # print(mqtt_mode, handle_info)
     write_node(handle_info, mqtt_mode, call_type, log_list)
 
 
@@ -227,7 +231,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                         # start_line += 1
             # _set_start_sign(sip, start_line, start_bytes)
             handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
-            print("callee", handle_info)
+            # print("callee", handle_info)
             logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
             # handle_info.get("state")[sip] = 1
             # handle_info.get("delay_time")[sip] = "1432.22ms"

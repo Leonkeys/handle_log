@@ -131,12 +131,12 @@ def put_msg(core_uuid, msg_dict):
 def log_handle():
     print("log_handle-start")
     while 1:
-        call_type = None
-        build_id = None
         try:
             create_channel_dict_l = start_call_queue.get()
             call_type, build_id = get_call_type(create_channel_dict_l)
         except:
+            call_type = None
+            build_id = None
             logging.error("error")
         if call_type and build_id:
 

@@ -52,7 +52,7 @@ def upload_file():
         if not os.path.exists(file_floder_path):
             os.makedirs(file_floder_path)
         filepath = os.path.join(file_floder_path, filename)
-        logging.debug("upload_file: ", filepath)
+        # logging.debug("upload_file: %s" % filepath)
         if not os.path.exists(file_floder_path):
             os.makedirs(file_floder_path)
             with open(filepath, "wb") as filepath:

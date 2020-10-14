@@ -365,7 +365,7 @@ def public_msg(core_uuid, call_username):
             "url": "http://{}:{}/log/upload".format(host, port)
         }
         msg_str = json.dumps(msg)
-        logging.debug(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%s"), "public payload:", msg_str)
+        # logging.debug("{datetime}: public payload: {msg}".format(datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%s"), msg=msg_str))
         logging.debug("public topic: %s , payload: %s " % ("/5476752146/log_analyse/{}".format(sip), msg_str))
         client.publish("/5476752146/log_analyse/{}".format(sip), msg_str, 1)
     if isinstance(call_username, list):

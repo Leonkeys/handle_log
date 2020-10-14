@@ -123,9 +123,10 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
         os.makedirs(local_file_path + "/" + dis_mode)
     logging.debug("remote log file path:%s, local log filepath:%s." % (local_file, local_log))
     start_bytes = get_server_log_line(dis_mode)
-    new_size = os.path.getsize(local_log)
+    new_size = os.path.getsize(local_file)
     with open(local_file, "rb") as old_local_file:
         with open(local_log, "wb") as new_local_file:
+            old_local_file.seek(int(start_bytes))
             for line_b in old_local_file:
                 if line_b:
                     log_list.append(line_b)
@@ -149,10 +150,11 @@ def api(core_uuid, unique_id_list, filename, call_type):
         os.makedirs(local_file_path + "/" + api_mode)
 
     start_bytes = get_server_log_line(api_mode)
-    new_size = os.path.getsize(new_local_log)
+    new_size = os.path.getsize(old_local_file)
     logging.debug("remote log file path:%s, local log filepath:%s." % (old_local_file, new_local_log))
     with open(old_local_file, "rb") as old_local_file:
         with open(new_local_log, "wb") as new_local_file:
+            old_local_file.seek(int(start_bytes))
             for line_b in old_local_file:
                 if line_b:
                     line_str = str(line_b, encoding="utf-8")
@@ -182,6 +184,7 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
     start_bytes = get_server_log_line(mqtt_mode)
     new_size = os.path.getsize(local_log)
     with open(local_log, "rb") as local_log_obj:
+        local_log_obj.seek(int(start_bytes))
         for line in local_log_obj:
             log_list.append(line)
 

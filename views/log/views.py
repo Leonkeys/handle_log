@@ -62,7 +62,7 @@ def upload_file():
                 os.makedirs(file_floder_path)
             file.save(filepath)
         update_start_sign(call_sip, filepath)
-        executor.submit(update_start_sign, call_sip, filepath)
+        # executor.submit(update_start_sign, call_sip, filepath)
         return '{"filename":"%s"}' % filename
     return ' '
 

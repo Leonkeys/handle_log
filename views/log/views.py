@@ -35,9 +35,9 @@ def upload_file():
     :return:
     """
     if request.method == 'POST':
-        print("upload_file")
+        logging.debug("upload_file")
         if 'file' not in request.files:
-            print('No file part')
+            logging.error('No file part')
             return redirect(request.url)
         file = request.files.get('file')
         call_sip = request.form.get('call_sip')
@@ -45,14 +45,14 @@ def upload_file():
         if clean_offset == "true":
             redis_client.hdel(call_sip, "start_line", "start_bytes")
         if file.filename == '':
-            print('No selected file')
+            logging.error('No selected file')
             return redirect(request.url)
         filename = "{}_log".format(call_sip)
         file_floder_path = local_file_path + "/tmp"
         if not os.path.exists(file_floder_path):
             os.makedirs(file_floder_path)
         filepath = os.path.join(file_floder_path, filename)
-        print(filepath)
+        logging.debug("upload_file: ", filepath)
         if not os.path.exists(file_floder_path):
             os.makedirs(file_floder_path)
             with open(filepath, "wb") as filepath:
@@ -78,7 +78,7 @@ def clean_offset():
     """
     if request.method.upper() == "POST":
         call_sip = request.form.get("call_sip")
-        print("clean_offset：%s" % call_sip)
+        logging.debug("clean_offset：%s" % call_sip)
         redis_client.hdel(call_sip, "start_line", "start_bytes")
         resp = make_response({"state": "is_success"})
         resp.status = "200"
@@ -89,7 +89,7 @@ def listen_ESL():
     '''
     ADD_SCHEDULE DEL_SCHEDULE CHANNEL_DESTROY CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP CUSTOM conference::maintenance
     '''
-    print("listen esl start")
+    logging.debug("listen esl start")
     start_msg_dict = dict()
     end_msg_dict = dict()
     con = ESLconnection(ESL_HOST, ESL_PORT, ESL_PASSWORD)
@@ -129,10 +129,12 @@ def put_msg(core_uuid, msg_dict):
 
 
 def log_handle():
-    print("log_handle-start")
+    logging.debug("log_handle-start")
     while 1:
         try:
             create_channel_dict_l = start_call_queue.get()
+            if not create_channel_dict_l:
+                raise Exception("create_channel_dict_l is not exist")
             call_type, build_id = get_call_type(create_channel_dict_l)
         except:
             call_type = None
@@ -142,8 +144,6 @@ def log_handle():
 
             write_build_id(call_type, build_id)
             caller_username, callee_username_list = get_call_username(create_channel_dict_l)
-            # caller_username = create_channel_dict_l[0].get("variable_sip_from_user")  # 呼叫者id
-            # callee_username = create_channel_dict_l[0].get("variable_sip_to_user")  # 被呼叫者id
             core_uuid = create_channel_dict_l[0].get("Core-UUID")
             caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
             unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]

@@ -1,4 +1,5 @@
 import os
+import datetime
 import logging
 import json
 import time
@@ -66,23 +67,12 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
         return write_node(caller_log, "caller", call_type, [])
     log_list = list()
     handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
-    # handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "27017.1ms", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
-    # start_line_str, start_bytes_str = _get_start_sign(caller_username)
-    # logging.debug("the caller upload file line: %s, bytes:%s" % (start_line_str, start_bytes_str))
-    # temp_file_bytes = os.path.getsize(caller_log_tmp_file_path)
-    # print(temp_file_bytes)
-    # start_line = int(start_line_str)
-    # start_bytes = int(start_bytes_str)
-    # start_bytes += temp_file_bytes
     with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
         for line_b in caller_log_tmp_file:
             if line_b:
                 log_list.append(line_b)
-                # start_line += 1
 
-    # logging.debug("the caller update sign file line: %d, bytes:%d" % (start_line, start_bytes))
-    # _set_start_sign(caller_username, start_line, start_bytes)
     write_node(handle_info, "caller", call_type, log_list)
     call_log_backup(caller_log_tmp_file_path)
 
@@ -114,7 +104,6 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
                         new_local_file.write(line_b)
     set_server_log_line(freeswitch_mode, new_size)
     handle_info = com.analyse_main("nav", log_name=local_log)
-    # print(freeswitch_mode, handle_info)
     write_node(handle_info, freeswitch_mode, call_type, log_list)
 
 
@@ -143,7 +132,6 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
                     new_local_file.write(line_b)
     set_server_log_line(dis_mode, new_size)
     handle_info = com.analyse_main("dis", log_name=local_log, offset_bytes=int(start_bytes))
-    # print(dis_mode, handle_info)
     write_node(handle_info, dis_mode, call_type, log_list)
 
 
@@ -173,7 +161,6 @@ def api(core_uuid, unique_id_list, filename, call_type):
                         new_local_file.write(line_b)
     set_server_log_line(api_mode, new_size)
     handle_info = com.analyse_main("api", log_name=new_local_log, offset_bytes=int(start_bytes))
-    # print(api_mode, handle_info)
     write_node(handle_info, api_mode, call_type, log_list)
 
 
@@ -200,7 +187,6 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
 
     set_server_log_line(mqtt_mode, new_size)
     handle_info = com.analyse_main("mqtt", log_name=local_log, offset_bytes=int(start_bytes))
-    # print(mqtt_mode, handle_info)
     write_node(handle_info, mqtt_mode, call_type, log_list)
 
 
@@ -219,22 +205,12 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                 logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
                 write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
                 continue
-            # start_line_str, start_bytes_str = _get_start_sign(sip)
-            # temp_file_bytes = os.path.getsize(callee_log_tmp_file_path)
-            # start_line = int(start_line_str)
-            # start_bytes = int(start_bytes_str)
-            # start_bytes += temp_file_bytes
             with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                 for line_b in callee_log_tmp_file:
                     if line_b:
                         log_list.append(line_b)
-                        # start_line += 1
-            # _set_start_sign(sip, start_line, start_bytes)
             handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
-            # print("callee", handle_info)
             logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
-            # handle_info.get("state")[sip] = 1
-            # handle_info.get("delay_time")[sip] = "1432.22ms"
             write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
             call_log_backup(callee_log_tmp_file_path)
         write_conf("callee", handle_info, call_type=call_type)
@@ -301,9 +277,6 @@ def write_conf(mode, handle_msg, call_type=None):
         conf_file_name = ""
 
     logging.debug("write config node file path:%s" % conf_file_path + conf_file_name)
-    # if mode == "caller" and os.path.exists(conf_file_path + conf_file_name):
-    #     os.remove(conf_file_path + conf_file_name)
-    #     copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
     file_msg_list = []
     with open(conf_file_path + conf_file_name, "r+") as conf_file_path:
         for conf_line in conf_file_path:
@@ -392,7 +365,7 @@ def public_msg(core_uuid, call_username):
             "url": "http://{}:{}/log/upload".format(host, port)
         }
         msg_str = json.dumps(msg)
-        print("public payload:", msg_str)
+        logging.debug(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%s"), "public payload:", msg_str)
         logging.debug("public topic: %s , payload: %s " % ("/5476752146/log_analyse/{}".format(sip), msg_str))
         client.publish("/5476752146/log_analyse/{}".format(sip), msg_str, 1)
     if isinstance(call_username, list):
@@ -421,24 +394,17 @@ def _get_start_sign(call_name):
     if not start_line or not start_bytes:
         return 0, 0
     return start_line, start_bytes
-
-
-def _set_start_sign(call_name, start_line, start_bytes):
-    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-    redis_client.hset(name=call_name, key="start_line", value=start_line)
-    redis_client.hset(name=call_name, key="start_bytes", value=start_bytes)
-    redis_client.close()
+#
+#
+# def _set_start_sign(call_name, start_line, start_bytes):
+#     redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+#     redis_client.hset(name=call_name, key="start_line", value=start_line)
+#     redis_client.hset(name=call_name, key="start_bytes", value=start_bytes)
+#     redis_client.close()
+#
 
 
 def call_log_backup(call_log_tmp_file_path):
-    # tem_file_list = list()
-    # with open(call_log_tmp_file_path, 'rb') as call_log_tmp_file:
-    #     for line in call_log_tmp_file:
-    #         tem_file_list.append(line)
-    # with open(call_log_file_path, "ab") as call_log_file_path:
-    #     for lines in tem_file_list:
-    #         call_log_file_path.write(lines)
-    # file_path = call_log_file_path.split("/")[0]
     path, file = call_log_tmp_file_path.rsplit("/", 1)
     if os.path.exists(path):
         rmtree(path)
@@ -471,7 +437,7 @@ def get_sip_uuid(esl_list):
 
         if esl.get("Event-Name") == "CHANNEL_PROGRESS" and esl.get("variable_sip_call_id"):
             callee_sip_call_id = esl.get("variable_sip_call_id")
-    print(caller_sip_call_id, callee_sip_call_id)
+    logging.debug("{}{}".format(caller_sip_call_id, callee_sip_call_id))
     return caller_sip_call_id, callee_sip_call_id
 
 
@@ -489,7 +455,6 @@ def get_call_username(create_channel_dict_l):
     return caller_username, list(set(callee_username_list))
 
 
-# variable_sip_h_X-NF-Video
 def get_call_type(create_channel_info_list):
     for create_channel_info in create_channel_info_list:
         if create_channel_info.get("Call-Direction") != "inbound":
@@ -516,8 +481,6 @@ def get_call_type(create_channel_info_list):
             # elif "urgent" in call_info_str:
             #     call_type = "urgentaudio"
             #     build_id = call_info_str
-
-            # elif
 
 
 def write_build_id(call_type, build_id):
@@ -585,8 +548,6 @@ def clean_log_file(call_type):
         # videogroup
         mode_show_log_path = show_log_path + "start_group_video_call/callee/"
 
-    # if os.path.exists(mode_show_log_path):
-    #     rmtree(mode_show_log_path + "/*")
     if os.path.exists(mode_show_log_path):
         ls_log_path = os.listdir(mode_show_log_path)
 
@@ -611,6 +572,3 @@ def get_server_log_line(mode):
         start_line = 0
     redis_client.close()
     return start_line
-
-# if __name__ == '__main__':
-    # print(get_server_log_line("dispatcher"))

@@ -62,9 +62,20 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
     logging.debug("caller check file is exist")
     msg = check_file(caller_log_tmp_file_path)
     if msg:
-        caller_log = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "27017.2ms", "analyse_prog_err": ""}
+        caller_log = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
         call_log_backup(caller_log_tmp_file_path)
+        if call_type == "videosingle":
+            _show_log_path = show_log_path + "start_single_video_call/caller/whole_log"
+        elif call_type == "audiosingle":
+            _show_log_path = show_log_path + "start_single_audio_call/caller/whole_log"
+        elif call_type == "videogroup":
+            _show_log_path = show_log_path + "start_group_video_call/caller/whole_log"
+        else:
+            # audiogroup
+            _show_log_path = show_log_path + "start_group_audio_call/caller/whole_log"
+        call_log_backup(_show_log_path)
         return write_node(caller_log, "caller", call_type, [])
+
     log_list = list()
     handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
     logging.debug("get caller user start sign ")

@@ -1,9 +1,11 @@
 # setting
+RUN_HOST = "0.0.0.0"
+RUN_PORT = "18004"
+DEBUG = False
 
-# run setting
-HOST = "192.168.22.194"
-PORT = "18004"
-DEBUG = True
+# public topic info
+LOCAL_HOST = "192.168.22.194"
+LOCAL_PORT = "18004"
 
 # server
 SERVER_IP = "192.168.22.40"

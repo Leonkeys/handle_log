@@ -3,6 +3,7 @@ import logging
 import redis
 import threading
 import queue
+from retrying import retry
 from . import log
 from flask import request, redirect, make_response
 from .tools import *
@@ -85,6 +86,7 @@ def clean_offset():
         return resp
 
 
+@retry(stop_max_attempt_number=10, wait_fixed=2000)
 def listen_ESL():
     '''
     ADD_SCHEDULE DEL_SCHEDULE CHANNEL_DESTROY CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP CUSTOM conference::maintenance
@@ -114,6 +116,9 @@ def listen_ESL():
                     start_msg_dict[core_uuid].append(create_channel_dict)
                 elif core_uuid in end_msg_dict:
                     end_msg_dict[core_uuid].append(create_channel_dict)
+
+                if event_name == "SERVER_DISCONNECT":
+                    raise Exception("the esl is disconnect, re connect in 10 seconds.")
 
 
 def call_func(func, *args, **kwargs):

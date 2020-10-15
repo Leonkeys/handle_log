@@ -35,6 +35,7 @@ def clean_line():
     payload_str = json.dumps(payload)
     logging.debug("task public topic: clean_offset, payload:{}".format(payload_str))
     client.publish("/5476752146/clean_offset", payload_str, 1)
+    client.disconnect()
 
 
 def add_job(scheduler):

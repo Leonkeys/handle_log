@@ -102,7 +102,7 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
     if not os.path.exists(local_file_path + "/freeswitch"):
         os.makedirs(local_file_path + "/freeswitch")
     start_bytes = get_server_log_line(freeswitch_mode)
-    new_size = os.path.getsize(local_log)
+    new_size = os.path.getsize(local_file)
     with open(local_file, "rb") as old_local_file:
 
         with open(local_log, "wb") as new_local_file:
@@ -209,26 +209,62 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
     handle_info = {"log_valid": "1", "state": {}, "err_msg": "", "delay_time": {}, "analyse_prog_err": ""}
     clean_log_file(call_type)
     if isinstance(callee_username_list, list):
-        for sip in callee_username_list:
-            log_list = list()
-            callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(sip)
+        if "single" in call_type:
+            if not callee_username_list:
+                handle_info = {"log_valid": "2", "state": "2", "err_msg": "callee is not exist", "analyse_prog_err": ""}
+                return write_node(handle_info, "callee", call_type, [])
+            callee_sip = callee_username_list[0]
+            callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(callee_sip)
             msg = check_file(callee_log_tmp_file_path)
             if msg:
-                handle_info["err_msg"] = msg
-                handle_info.get("state")[sip] = 2
-                logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
-                write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
-                continue
+                logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=callee_sip))
+                handle_info = {"log_valid": "0", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
+                if call_type == "videosingle":
+                    _show_log_path = show_log_path + "start_single_video_call/callee/whole_log"
+                elif call_type == "audiosingle":
+                    _show_log_path = show_log_path + "start_single_audio_call/callee/whole_log"
+                elif call_type == "videogroup":
+                    _show_log_path = show_log_path + "start_group_video_call/callee/whole_log"
+                else:
+                    # audiogroup
+                    _show_log_path = show_log_path + "start_group_audio_call/callee/whole_log"
+                if os.path.isfile(_show_log_path):
+                    os.remove(_show_log_path)
+                return write_node(handle_info, "callee", call_type, [])
+
+            log_list = list()
+            handle_info = com.analyse_main("callee", variable_sip_call_id, callee_log_tmp_file_path)
+            logging.debug("get callee user start sign ")
             with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                 for line_b in callee_log_tmp_file:
                     if line_b:
                         log_list.append(line_b)
-            handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
-            logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
-            write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
+
+            write_node(handle_info, "callee", call_type, log_list)
             call_log_backup(callee_log_tmp_file_path)
-        write_conf("callee", handle_info, call_type=call_type)
-        logging.debug("handle log ===============END===============")
+            logging.debug("callee handle log=================END=================(single)")
+
+        else:
+            for sip in callee_username_list:
+                log_list = list()
+                callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(sip)
+                msg = check_file(callee_log_tmp_file_path)
+                if msg:
+                    handle_info["err_msg"] = msg
+                    handle_info.get("state")[sip] = 2
+                    logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
+                    write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
+                    continue
+                with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
+                    for line_b in callee_log_tmp_file:
+                        if line_b:
+                            log_list.append(line_b)
+                handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
+                logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
+                write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
+                call_log_backup(callee_log_tmp_file_path)
+            write_conf("callee", handle_info, call_type=call_type)
+            logging.debug("handle log ===============END===============(group)")
     else:
         msg = "log_handle is err please call manager(callee mode need callee_username_list is a list not other type)"
         handle_info["err_msg"] = msg
@@ -387,6 +423,7 @@ def public_msg(core_uuid, call_username):
             _public_msg(sip)
     else:
         _public_msg(call_username)
+    client.disconnect()
 
 
 def check_file(call_log_path):
@@ -394,17 +431,20 @@ def check_file(call_log_path):
     检查终端日志文件是否上传成功。
     '''
     for i in range(15):
-        if os.path.exists(call_log_path):
+        if os.path.isfile(call_log_path):
             return
         time.sleep(1)
     return "terminal log upload failed"
 
 
 def _get_start_sign(call_name):
-    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-    start_line = redis_client.hget(name=call_name, key="start_line")
-    start_bytes = redis_client.hget(name=call_name, key="start_bytes")
-    redis_client.close()
+    if call_name:
+        redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+        start_line = redis_client.hget(name=call_name, key="start_line")
+        start_bytes = redis_client.hget(name=call_name, key="start_bytes")
+        redis_client.close()
+    else:
+        start_line, start_bytes = 0, 0
     if not start_line or not start_bytes:
         return 0, 0
     return start_line, start_bytes
@@ -495,6 +535,14 @@ def get_call_type(create_channel_info_list):
             # elif "urgent" in call_info_str:
             #     call_type = "urgentaudio"
             #     build_id = call_info_str
+    else:
+        if not create_channel_info_list:
+            raise Exception("create_channel_dict_l is not exist (get_call_type)")
+        call_info = create_channel_info_list[0]
+        call_str = call_info.get("Caller-Caller-ID-Number")
+        call_info = call_str.split("*")
+        call_type, build_id = call_info[0], call_info[-3]
+        return call_type, build_id
 
 
 def write_build_id(call_type, build_id):

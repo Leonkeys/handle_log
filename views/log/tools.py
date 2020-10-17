@@ -56,28 +56,31 @@ def get_server_log(remote_path, local_file=None):
         print("server log is not found:{}".format(remote_path))
 
 
-def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
-    public_msg(core_uuid, caller_username)
+def caller(caller_username, call_type, variable_sip_call_id):
     caller_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(caller_username)
-    logging.debug("caller check file is exist")
+    logging.debug("caller check file ")
     msg = check_file(caller_log_tmp_file_path)
     if msg:
         caller_log = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
-        call_log_backup(caller_log_tmp_file_path)
         if call_type == "videosingle":
             _show_log_path = show_log_path + "start_single_video_call/caller/whole_log"
         elif call_type == "audiosingle":
             _show_log_path = show_log_path + "start_single_audio_call/caller/whole_log"
         elif call_type == "videogroup":
             _show_log_path = show_log_path + "start_group_video_call/caller/whole_log"
-        else:
+        elif call_type in ["audiogroup", "mulgroup"]:
             # audiogroup
             _show_log_path = show_log_path + "start_group_audio_call/caller/whole_log"
-        call_log_backup(_show_log_path)
+        del_tmp_path(_show_log_path)
         return write_node(caller_log, "caller", call_type, [])
 
     log_list = list()
-    handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
+    try:
+        handle_info = com.analyse_main("caller", variable_sip_call_id, caller_log_tmp_file_path)
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logging.error("caller analyse_main func error: %s" % error_msg)
     logging.debug("get caller user start sign ")
     with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
         for line_b in caller_log_tmp_file:
@@ -85,7 +88,8 @@ def caller(core_uuid, caller_username, call_type, variable_sip_call_id):
                 log_list.append(line_b)
 
     write_node(handle_info, "caller", call_type, log_list)
-    call_log_backup(caller_log_tmp_file_path)
+    if os.path.isfile(caller_log_tmp_file_path):
+        os.remove(caller_log_tmp_file_path)
 
 
 def freeswitch(core_uuid, unique_id_list, filename, call_type):
@@ -114,7 +118,12 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     set_server_log_line(freeswitch_mode, new_size)
-    handle_info = com.analyse_main("nav", log_name=local_log)
+    try:
+        handle_info = com.analyse_main("nav", log_name=local_log)
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logging.error("caller analyse_main func error: %s" % error_msg)
     write_node(handle_info, freeswitch_mode, call_type, log_list)
 
 
@@ -143,7 +152,12 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
                     log_list.append(line_b)
                     new_local_file.write(line_b)
     set_server_log_line(dis_mode, new_size)
-    handle_info = com.analyse_main("dis", log_name=local_log, offset_bytes=int(start_bytes))
+    try:
+        handle_info = com.analyse_main("dis", log_name=local_log, offset_bytes=int(start_bytes))
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logging.error("caller analyse_main func error: %s" % error_msg)
     write_node(handle_info, dis_mode, call_type, log_list)
 
 
@@ -173,7 +187,13 @@ def api(core_uuid, unique_id_list, filename, call_type):
                         log_list.append(line_b)
                         new_local_file.write(line_b)
     set_server_log_line(api_mode, new_size)
-    handle_info = com.analyse_main("api", log_name=new_local_log, offset_bytes=int(start_bytes))
+    try:
+        handle_info = com.analyse_main("api", log_name=new_local_log, offset_bytes=int(start_bytes))
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logging.error("caller analyse_main func error: %s" % error_msg)
+    logging.debug("api handle log write node")
     write_node(handle_info, api_mode, call_type, log_list)
 
 
@@ -200,12 +220,18 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
             log_list.append(line)
 
     set_server_log_line(mqtt_mode, new_size)
-    handle_info = com.analyse_main("mqtt", log_name=local_log, offset_bytes=int(start_bytes))
+    try:
+        handle_info = com.analyse_main("mqtt", log_name=local_log, offset_bytes=int(start_bytes))
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logging.error("caller analyse_main func error: %s" % error_msg)
+
+    logging.debug("mqtt handle log write node")
     write_node(handle_info, mqtt_mode, call_type, log_list)
 
 
 def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
-    public_msg(core_uuid, callee_username_list)
     handle_info = {"log_valid": "1", "state": {}, "err_msg": "", "delay_time": {}, "analyse_prog_err": ""}
     clean_log_file(call_type)
     if isinstance(callee_username_list, list):
@@ -225,7 +251,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                     _show_log_path = show_log_path + "start_single_audio_call/callee/whole_log"
                 elif call_type == "videogroup":
                     _show_log_path = show_log_path + "start_group_video_call/callee/whole_log"
-                else:
+                elif call_type in ["audiogroup", "mulgroup"]:
                     # audiogroup
                     _show_log_path = show_log_path + "start_group_audio_call/callee/whole_log"
                 if os.path.isfile(_show_log_path):
@@ -241,7 +267,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                         log_list.append(line_b)
 
             write_node(handle_info, "callee", call_type, log_list)
-            call_log_backup(callee_log_tmp_file_path)
+            del_tmp_path(callee_log_tmp_file_path)
             logging.debug("callee handle log=================END=================(single)")
 
         else:
@@ -253,7 +279,7 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                     handle_info["err_msg"] = msg
                     handle_info.get("state")[sip] = 2
                     logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
-                    write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
+                    write_log(handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
                     continue
                 with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                     for line_b in callee_log_tmp_file:
@@ -261,8 +287,8 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                             log_list.append(line_b)
                 handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
                 logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
-                write_log(handle_info, log_list, "callee", call_sip=sip, call_type=call_type)
-                call_log_backup(callee_log_tmp_file_path)
+                write_log(handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
+                del_tmp_path(callee_log_tmp_file_path)
             write_conf("callee", handle_info, call_type=call_type)
             logging.debug("handle log ===============END===============(group)")
     else:
@@ -280,9 +306,9 @@ def write_node(handle_msg, mode, call_type, log_list):
     logging.debug("%s write_node " % mode)
     # call_type_list = [audiosingle, videosingle, audiogroup, videogroup, ...]
     # 视频单呼组呼，音频单呼组呼。
-    if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup"]:
+    if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup", "mulgroup"]:
         write_conf(mode, handle_msg, call_type=call_type)
-        write_log(handle_msg, log_list, mode, call_type=call_type)
+        write_log(handle_msg, mode, call_type=call_type, log_list=log_list)
 
 
 def write_conf(mode, handle_msg, call_type=None):
@@ -290,11 +316,8 @@ def write_conf(mode, handle_msg, call_type=None):
     单呼 组呼写conf文件
     """
 
-    if not call_type:
-        call_type = handle_msg.get("call_type")[0]
     state = handle_msg.get('state', "0")
     delay_time = handle_msg.get("delay_time")
-    template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
     conf_file_path = app.config["CONF_FILE_PATH"]
     if mode == "caller":
         mode_write_line = 6
@@ -319,7 +342,7 @@ def write_conf(mode, handle_msg, call_type=None):
         conf_file_name = "start_single_audio_call.conf"
     elif call_type == "videosingle":
         conf_file_name = "start_single_video_call.conf"
-    elif call_type == "audiogroup":
+    elif call_type in ["audiogroup", "mulgroup"]:
         conf_file_name = "start_group_audio_call.conf"
     elif call_type == "videogroup":
         conf_file_name = "start_group_video_call.conf"
@@ -352,14 +375,14 @@ def write_conf(mode, handle_msg, call_type=None):
 
             else:
                 file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
-                old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
-                file_msg_list[45] = str(old_delay_time + float(delay_time.replace("ms", ""))) + "ms\n"
+                # old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
+                # file_msg_list[45] = str(old_delay_time + float(delay_time.replace("ms", ""))) + "ms\n"
         conf_file_path.seek(0)
         for line in file_msg_list:
             conf_file_path.write(line)
 
 
-def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
+def write_log(handle_msg, mode, call_type=None, log_list=None, call_sip=None):
     """
     编辑需要展示的日志文件内容
     单呼 组呼 写日志文件
@@ -372,7 +395,7 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
         mode_show_log_path = show_log_path + "start_single_audio_call/" + mode + "/"
     elif call_type == "videosingle":
         mode_show_log_path = show_log_path + "start_single_video_call/" + mode + "/"
-    elif call_type == "audiogroup":
+    elif call_type in ["audiogroup", "mulgroup"]:
         mode_show_log_path = show_log_path + "start_group_audio_call/" + mode + "/"
     else:
         # videogroup
@@ -400,7 +423,7 @@ def write_log(handle_msg, log_list, mode, call_sip=None, call_type=None):
             handle_log_file.write(handle_msg_str)
 
 
-def public_msg(core_uuid, call_username):
+def public_msg(call_username):
     client = mqtt_client.Client()
     client.connect(host=mqtt_host, port=mqtt_port, keepalive=600)
     client.username_pw_set(mqtt_username, mqtt_password)
@@ -458,7 +481,7 @@ def _get_start_sign(call_name):
 #
 
 
-def call_log_backup(call_log_tmp_file_path):
+def del_tmp_path(call_log_tmp_file_path):
     path, file = call_log_tmp_file_path.rsplit("/", 1)
     if os.path.exists(path):
         rmtree(path)
@@ -551,7 +574,7 @@ def write_build_id(call_type, build_id):
         conf_file_name = "start_single_audio_call.conf"
     elif call_type == "videosingle":
         conf_file_name = "start_single_video_call.conf"
-    elif call_type == "audiogroup":
+    elif call_type in ["audiogroup", "mulgroup"]:
         conf_file_name = "start_group_audio_call.conf"
     elif call_type == "videogroup":
         conf_file_name = "start_group_video_call.conf"
@@ -559,7 +582,10 @@ def write_build_id(call_type, build_id):
     conf_file_path = app.config["CONF_FILE_PATH"]
     template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
     if not conf_file_name:
-        raise Exception("call type is not exist")
+        logging.error("call type is not exist")
+        return
+        # raise Exception("call type is not exist")
+
     if os.path.exists(conf_file_path + conf_file_name):
         os.remove(conf_file_path + conf_file_name)
         copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
@@ -600,11 +626,11 @@ def update_start_sign(call_sip, filepath):
 
 def clean_log_file(call_type):
 
-    if call_type in ["audiosingle", "singlecall"]:
+    if call_type in "audiosingle":
         mode_show_log_path = show_log_path + "start_single_audio_call/callee/"
     elif call_type == "videosingle":
         mode_show_log_path = show_log_path + "start_single_video_call/callee/"
-    elif call_type == "audiogroup":
+    elif call_type in ["audiogroup", "mulgroup"]:
         mode_show_log_path = show_log_path + "start_group_audio_call/callee/"
     else:
         # videogroup
@@ -634,3 +660,65 @@ def get_server_log_line(mode):
         start_line = 0
     redis_client.close()
     return start_line
+
+
+def get_terminal_log(caller_username, callee_username_list, call_type):
+    # call_err_sip = list()
+    call_terminal_log_path = local_file_path + "/tmp/"
+    if os.path.exists(call_terminal_log_path):
+        ls_terminal_log_file = os.listdir(call_terminal_log_path)
+        for _file in ls_terminal_log_file:
+            if os.path.isdir(_file):
+                d_file = call_terminal_log_path + _file
+                rmtree(d_file)
+            else:
+                os.remove(os.path.join(call_terminal_log_path, _file))
+
+    # caller
+    public_msg(caller_username)
+    # caller_terminal_log_path = local_file_path + "/tmp/{}_log".format(caller_username)
+    # msg = check_file(caller_terminal_log_path)
+    # if msg:
+    #     caller_handle_msg = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
+    #     if call_type == "videosingle":
+    #         _show_log_path = show_log_path + "start_single_video_call/caller/whole_log"
+    #     elif call_type == "audiosingle":
+    #         _show_log_path = show_log_path + "start_single_audio_call/caller/whole_log"
+    #     elif call_type == "videogroup":
+    #         _show_log_path = show_log_path + "start_group_video_call/caller/whole_log"
+    #     else:
+    #         # audiogroup
+    #         _show_log_path = show_log_path + "start_group_audio_call/caller/whole_log"
+    #     if os.path.isfile(_show_log_path):
+    #         os.remove(_show_log_path)
+    #     write_node(caller_handle_msg, "caller", call_type, [])
+    #     call_err_sip.append(caller_username)
+
+    # callee
+    # if call_type == "videosingle":
+    #     _show_log_path = show_log_path + "start_single_video_call/callee/"
+    # elif call_type == "audiosingle":
+    #     _show_log_path = show_log_path + "start_single_audio_call/callee/"
+    # elif call_type == "videogroup":
+    #     _show_log_path = show_log_path + "start_group_video_call/callee/"
+    # else:
+    #     # audiogroup
+    #     _show_log_path = show_log_path + "start_group_audio_call/callee/"
+    # if os.path.exists(_show_log_path):
+    #     ls_log_path = os.listdir(_show_log_path)
+    #     for _file in ls_log_path:
+    #         if os.path.isdir(_file):
+    #             d_file = call_terminal_log_path + _file
+    #             rmtree(d_file)
+    #         else:
+    #             os.remove(os.path.join(call_terminal_log_path, _file))
+    public_msg(callee_username_list)
+    # for callee_sip in callee_username_list:
+    #     terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_sip)
+    #     msg = check_file(terminal_log_path)
+    #     if msg:
+    #         callee_handle_msg = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
+    #         write_log(callee_handle_msg, "callee", call_type=call_type, log_list=[], call_sip=callee_sip)
+    #         call_err_sip.append(callee_sip)
+    #
+    # return call_err_sip

@@ -11,7 +11,7 @@ import json
 from ESL import *
 from manage import app
 from concurrent.futures import ThreadPoolExecutor
-start_call_queue = queue.Queue(20)
+start_call_queue = queue.Queue(1)
 end_call_queue = queue.Queue(20)
 redis_host = app.config['REDIS_HOST']
 redis_port = app.config["REDIS_PORT"]
@@ -117,7 +117,7 @@ def listen_ESL():
                 elif core_uuid in end_msg_dict:
                     end_msg_dict[core_uuid].append(create_channel_dict)
 
-                if event_name == "SERVER_DISCONNECT":
+                if event_name == "SERVER_DISCONNECTED":
                     raise Exception("the esl is disconnect, re connect in 10 seconds.")
 
 
@@ -129,6 +129,8 @@ def call_func(func, *args, **kwargs):
 
 
 def put_msg(core_uuid, msg_dict):
+    if start_call_queue.full():
+        start_call_queue.get()
     start_call_queue.put(msg_dict[core_uuid])
     del msg_dict[core_uuid]
 
@@ -138,13 +140,15 @@ def log_handle():
     while 1:
         try:
             create_channel_dict_l = start_call_queue.get()
+            if not start_call_queue.empty():
+                continue
             if not create_channel_dict_l:
                 raise Exception("create_channel_dict_l is not exist")
             call_type, build_id = get_call_type(create_channel_dict_l)
-        except:
+        except Exception as e:
             call_type = None
             build_id = None
-            logging.error("error")
+            logging.error(e)
         if call_type and build_id:
 
             write_build_id(call_type, build_id)
@@ -152,8 +156,11 @@ def log_handle():
             core_uuid = create_channel_dict_l[0].get("Core-UUID")
             caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
             unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
+            thread_list = list()
 
-            caller(core_uuid, caller_username, call_type, caller_sip_uuid)
+            get_terminal_log(caller_username, callee_username_list, call_type)
+            caller_t = threading.Thread(target=caller, args=(caller_username, call_type, caller_sip_uuid))
+            thread_list.append(caller_t)
             for func, remote_log_path in remote_log_path_list.items():
                 logging.debug("func: %s" % func)
                 if func == "mqtt":
@@ -167,9 +174,14 @@ def log_handle():
                     filename = remote_log_path.split("/")[-1]
                 if remote_log_path:
                     get_server_log(remote_log_path)
-                call_func(func, core_uuid, unique_id_list, filename, call_type)
 
-            callee(core_uuid, callee_username_list, call_type, callee_sip_uuid)
+                func = threading.Thread(target=call_func, args=(func, core_uuid, unique_id_list, filename, call_type))
+                thread_list.append(func)
+            callee_t = threading.Thread(target=callee, args=(core_uuid, callee_username_list, call_type, callee_sip_uuid))
+            thread_list.append(callee_t)
+            for t in thread_list:
+                t.start()
+                t.join()
 
 
 if __name__ == '__main__':

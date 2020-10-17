@@ -62,10 +62,8 @@ class MyMongo(object):
         tmp = self.mongodb['registry'].find({'server': server}, {'server': 1, 'inode': 1, 'offset': 1, 'key_list': 1})
         try:
             res = tmp.next()
-            print("get prev info", type(tmp))
             return res['offset'], res['inode'], res['key_list']
         except StopIteration:
-            print("stop iter")
             return 0, 0, []
         except Exception as err:
             logging.error("get offset of {} at {} error, will exit: {}".format(self.db_name, server, repr(err)))
@@ -147,7 +145,7 @@ class Processor(object):
         try:  
            work_dynamic = importlib.import_module(work_dynamic_module)
         except Exception:
-           print("err, don't find dynamic work file\n", work_dynamic_module, dy_name)
+           logging.error("Don't find dynamic work file {} {}".format(work_dynamic_module, dy_name))
            return  
         num_str = str(self.processed_num)
         if self.processed_num > 999:
@@ -172,7 +170,7 @@ class Processor(object):
         if LOG_TYPE == 'plaintext':
             logobj = LogPlainText(self.log_name)
         else:
-            print("wrong LOG_TYPE, must 'plaintext' \n")
+            logging.error("wrong LOG_TYPE, must 'plaintext' ")
             return
               
         #print('db_name:',self.db_name, 'find:', self.mymongo.mongodb[self.mymongo.mongodb.list_collection_names(session=None)[0]].find_one({"inode" : 1051674}))
@@ -186,12 +184,18 @@ class Processor(object):
         #print("file_encode:", file_encode)
         mqtt_line = ''
         with codecs.open(self.log_name) as fobj:
-            print("open:", self.log_name)
+            logging.debug("open:{}".format(self.log_name))
             fobj.seek(last_offset)
             parsed_offset = last_offset
             for line_str in fobj:
-                #print("line:", line_str)
+                #logging.debug("line: {}".format(line_str))
                 if self.log_type == 'mqtt':
+                    if len(line_str.split()) > 2 and  line_str.split()[2] == '[debug]':
+                        continue
+                    if line_str.strip().replace(' ', '') == '...':
+                        continue
+                    if line_str.strip().split(',')[-1].split('>>'):
+                        continue
                     mqtt_line = line_str.split(',')
                     if ''.join(mqtt_line).strip().isdecimal() or line_str.replace(' ', '') == '\n':
                         continue
@@ -222,9 +226,9 @@ class Processor(object):
             log_key_list = get_log_key_list(self.log_format_list, last_key_list)
             try:
                 self.mymongo.insert_mongo(self.bulk_documents, parsed_offset, logobj.cur_inode, date + self.this_h_m_s, log_key_list)
-                print("parsedoffset:", parsed_offset)
+                logging.debug("Log file parsedoffset: {}".format(parsed_offset))
             except Exception as e:
-                print("mongo insert err!", e)
+                logging.error("mongo insert err: {}".format(e))
                 return
 
     def db_key_list(self):
@@ -293,11 +297,12 @@ err_keys = ['needauth','authfailed','requirepass','auth','refuse','reject','faul
 """
 log_name:        需要解析的log文件
 log_format_list：用户输入的log格式列表
+offset_bytes:    日志文件的读取位置
 private_name：   对log匹配结果进行私有业务处理的文件。除了后缀，文件名不能带'.'
 """
 #mod_type:[caller,callee,nav,dis,api,mqtt]
 def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
-    print("enter analyse main():", mod_type, uuid)
+    logging.debug("enter analyse main, mod:{} uuid:{}".format(mod_type, uuid))
     analyse_result = {'log_valid':None,'state':None,'err_msg':None,'delay_time':None,'analyse_prog_err':None}
     R.acquire()
     if log_name == '' or mod_type == '':
@@ -313,7 +318,6 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
         ERROR_VALUE.clear()
     ERROR_VALUE = {key:[] for key in err_keys}
     
-    #logging.info("recv args:uuid:{},mod_name:{}".format(uuid, mod_type))
     log_callid = caller = callee = call_t = None
     in_delay = out_delay = income_percent = outgo_percent = total_percent = ''
     from_s = to_s = from_sip = to_sip = ''
@@ -323,38 +327,31 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
     eue_flag = 0
     emon_flag = 0
     num_err = 0
-    #print("regular exp match result:-------",li)
-    #logging.info("Regular exp match result:{}".format(li))
+    #logging.debug("regular exp match result: {}".format(li))
 
     for i in li:
         if 'emon_s_flag' in i.keys() or  ('emon_e_flag'in i.keys() and i['emon_e_flag'] == 'end'):
             log_callid = i['callid'][1:len(i['callid'])-1]
             if (emon_flag < 2) and log_callid == uuid:
                 emon_flag = emon_flag + 1
-                #logging.info("emon end:from:{},to:{},type:{},id:{}".format(from_e,to_e,i['type'][1:len(i['type'])-1], log_callid))
             else:
                 continue
-            print("emon_flag:", emon_flag)
 
         if 'eue_s_flag' in i.keys() or 'eue_end_flag' in i.keys():
             log_callid = i['id'][1:len(i['id'])-1]
             if (eue_flag < 2) and (log_callid == uuid):
                 eue_flag = eue_flag + 1
-                #logging.info("eue:from:{},to:{},type:{},id:{}".format(i['from'][1:len(i['from'])-1], i['to'][1:len(i['to'])-1], i['call_type'],log_callid))
             else:
                 continue
-            print("eue_flag:", eue_flag)
 
         if 'out_setup_time' in i.keys():
             if out_delay == '':
                 out_delay = i['out_setup_time']
-                print("emon out delay:", out_delay)
             else:
                 continue
         if 'in_setup_time' in i.keys():
             if in_delay == '':
                 in_delay = i['in_setup_time']
-                print("emon in delay:", in_delay)
             else:
                 continue
 
@@ -388,32 +385,31 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
             else:
                 continue
 
-    #print("ERROR_VALUE: ", ERROR_VALUE)
+    #logging.debug("ERROR_VALUE: {}".format(ERROR_VALUE))
     end_t = time.time()
-    print("per :", income_percent, outgo_percent, total_percent, out_delay, in_delay, end_t - start_t)
-    #logging.info("percent :income:{},out:{},total:{},indelay:{},outdelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
     remote_docker_stat()
 
     for k in ERROR_VALUE:
         if ERROR_VALUE[k] == []:
             num_err += 1
-    print("num_err key::",num_err)
+    #logging.debug("null error_list count :{}".format(num_err))
 
     if mod_type == 'caller' or mod_type == 'callee':
+        logging.debug("percent :income:{},out:{},total:{},outdelay:{},indelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
         if emon_flag == 2 or eue_flag == 2:
             analyse_result['log_valid'] = '1'
+            if num_err == len(ERROR_VALUE):
+                analyse_result['state'] = '1' #succ
+            else:
+                analyse_result['state'] = '2' #fail
             if mod_type == 'caller':
                 analyse_result['delay_time'] = out_delay
             else:
                 analyse_result['delay_time'] = in_delay
         else:
             analyse_result['log_valid'] = '2'
-        if num_err == len(ERROR_VALUE):
-            analyse_result['state'] = '1' #succ
-            analyse_result['err_msg'] = ERROR_VALUE
-        else:
             analyse_result['state'] = '2' #fail
-            analyse_result['err_msg'] = ERROR_VALUE
+        analyse_result['err_msg'] = ERROR_VALUE
     elif mod_type == 'nav' or mod_type == 'dis': #todo nav dis api mqtt
         analyse_result['log_valid'] = '1'
         if num_err == len(ERROR_VALUE) and docker_srv_name[0] not in docker_err.keys() and docker_srv_name[1] not in docker_err.keys() and docker_srv_name[5] not in docker_err.keys() and docker_srv_name[6] not in docker_err.keys():
@@ -452,11 +448,13 @@ def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_f
         docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
         docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
         analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
-    else: #todo nav dis api mqtt
-        print("mode type error!")
+    else:
+        logging.error("mode type error!")
 
 
     R.release()
+    logging.debug("exit analyse main, current mod:{}".format(mod_type))
+    #logging.debug("analyse main, return: {}".format(analyse_result))
     return analyse_result
 
 
@@ -481,6 +479,7 @@ port = 22
 docker_err = dict()
 
 def remote_docker_stat():
+    logging.debug("enter remote_docker_stat func()")
     err_ret = ret = None
     s = paramiko.SSHClient()
     s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -490,22 +489,23 @@ def remote_docker_stat():
     err_ret = stderr.read().decode('utf-8')
     status = stdout.channel.recv_exit_status()
     if(status == 1):
-        print("cmd awk return nothing: ", err_ret)
+        logging.error("cmd awk return nothing, cmd error is :{}".format(err_ret))
     else:
         ret = stdout.read().decode('utf-8')
         li = ret.strip('\nNAMES').split('\n')
-    print("cmd_get_docker_name result:", ret, li)
+    logging.debug("cmd_get_docker_name result:{}".format(li))
     for i in li:
         cmd_get_docker_err = 'sudo docker logs  --tail 1000 %s 2>&1 | grep \' error \'' % i
         stdin,stdout,stderr = s.exec_command(cmd_get_docker_err)
         err_ret = stderr.read().decode('utf-8')
         status = stdout.channel.recv_exit_status()
         if(status == 1):
-            print("cmd grep return nothing: ", err_ret, i)
+            logging.error("cmd grep return nothing, cmd error is: {}".format(err_ret))
         else:
             ret = stdout.read().decode('utf-8')
-            print("cmd_get_docker_err result:", ret)
+            logging.debug("cmd_get_docker_err  result:{}".format(ret))
             docker_err[i] = ret
+    logging.debug("exit remote_docker_stat func()")
 
 
 

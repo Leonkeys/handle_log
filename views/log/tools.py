@@ -81,6 +81,7 @@ def caller(caller_username, call_type, variable_sip_call_id):
         import traceback
         error_msg = traceback.format_exc()
         logging.error("caller analyse_main func error: %s" % error_msg)
+        handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
     with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
         for line_b in caller_log_tmp_file:
@@ -123,7 +124,9 @@ def freeswitch(core_uuid, unique_id_list, filename, call_type):
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
-        logging.error("caller analyse_main func error: %s" % error_msg)
+        handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
+        logging.error("freeswitch analyse_main func error: %s" % error_msg)
+
     write_node(handle_info, freeswitch_mode, call_type, log_list)
 
 
@@ -157,7 +160,8 @@ def dispatcher(core_uuid, unique_id_list, filename, call_type):
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
-        logging.error("caller analyse_main func error: %s" % error_msg)
+        logging.error("dispatcher analyse_main func error: %s" % error_msg)
+        handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
     write_node(handle_info, dis_mode, call_type, log_list)
 
 
@@ -193,6 +197,7 @@ def api(core_uuid, unique_id_list, filename, call_type):
         import traceback
         error_msg = traceback.format_exc()
         logging.error("caller analyse_main func error: %s" % error_msg)
+        handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
     logging.debug("api handle log write node")
     write_node(handle_info, api_mode, call_type, log_list)
 
@@ -226,13 +231,14 @@ def mqtt(core_uuid, unique_id_list, filename, call_type):
         import traceback
         error_msg = traceback.format_exc()
         logging.error("caller analyse_main func error: %s" % error_msg)
+        handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
 
     logging.debug("mqtt handle log write node")
     write_node(handle_info, mqtt_mode, call_type, log_list)
 
 
 def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
-    handle_info = {"log_valid": "1", "state": {}, "err_msg": "", "delay_time": {}, "analyse_prog_err": ""}
+    handle_info = {"log_valid": "1", "state": "2", "err_msg": "", "delay_time": "0", "analyse_prog_err": ""}
     clean_log_file(call_type)
     if isinstance(callee_username_list, list):
         if "single" in call_type:
@@ -259,7 +265,13 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                 return write_node(handle_info, "callee", call_type, [])
 
             log_list = list()
-            handle_info = com.analyse_main("callee", variable_sip_call_id, callee_log_tmp_file_path)
+            try:
+                handle_info = com.analyse_main("callee", variable_sip_call_id, callee_log_tmp_file_path)
+            except Exception as e:
+                import traceback
+                error_msg = traceback.format_exc()
+                handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
+
             logging.debug("get callee user start sign ")
             with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                 for line_b in callee_log_tmp_file:
@@ -271,25 +283,43 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
             logging.debug("callee handle log=================END=================(single)")
 
         else:
+            user_info_list = list()
+            delay_time_mean = 0
             for sip in callee_username_list:
                 log_list = list()
                 callee_log_tmp_file_path = local_file_path + "/tmp/{}_log".format(sip)
                 msg = check_file(callee_log_tmp_file_path)
                 if msg:
-                    handle_info["err_msg"] = msg
-                    handle_info.get("state")[sip] = 2
+                    handle_info["state"] = "2"
+                    _handle_info = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
                     logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
-                    write_log(handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
+                    write_log(_handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
                     continue
                 with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
                     for line_b in callee_log_tmp_file:
                         if line_b:
                             log_list.append(line_b)
-                handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
+                try:
+                    _handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
+                except Exception as e:
+                    handle_info["state"] = "2"
+                    import traceback
+                    error_msg = traceback.format_exc()
+                    _handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
+                    logging.error(error_msg)
+
+                user_info = dict()
+                user_info["name"] = sip
+                user_info["state"] = _handle_info.get("state")
+                user_info["delay_time"] = _handle_info.get('delay_time', "0")
+                user_info_list.append(user_info)
+
+                delay_time_mean = round((int(handle_info.get("delay_time")) + delay_time_mean) / 2, ndigits=5)
                 logging.debug("log handle(sip): {sip} handle success".format(sip=sip))
-                write_log(handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
+                write_log(_handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
                 del_tmp_path(callee_log_tmp_file_path)
-            write_conf("callee", handle_info, call_type=call_type)
+
+            write_conf("callee", handle_info, call_type=call_type, user_info=user_info_list)
             logging.debug("handle log ===============END===============(group)")
     else:
         msg = "log_handle is err please call manager(callee mode need callee_username_list is a list not other type)"
@@ -299,19 +329,18 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
         logging.warning("handle log ==============END==============")
 
 
-def write_node(handle_msg, mode, call_type, log_list):
+def write_node(handle_msg, mode, call_type, log_list, user_info=None):
     """
     写和前端交互的文本  && 和需要展示的log日志文件
     """
     logging.debug("%s write_node " % mode)
-    # call_type_list = [audiosingle, videosingle, audiogroup, videogroup, ...]
     # 视频单呼组呼，音频单呼组呼。
     if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup", "mulgroup"]:
-        write_conf(mode, handle_msg, call_type=call_type)
+        write_conf(mode, handle_msg, call_type=call_type, user_info=user_info)
         write_log(handle_msg, mode, call_type=call_type, log_list=log_list)
 
 
-def write_conf(mode, handle_msg, call_type=None):
+def write_conf(mode, handle_msg, call_type=None, user_info=None):
     """
     单呼 组呼写conf文件
     """
@@ -319,67 +348,31 @@ def write_conf(mode, handle_msg, call_type=None):
     state = handle_msg.get('state', "0")
     delay_time = handle_msg.get("delay_time")
     conf_file_path = app.config["CONF_FILE_PATH"]
-    if mode == "caller":
-        mode_write_line = 6
-        delay_time_write_line = 34
-    elif mode == "freeswitch":
-        mode_write_line = 8
-        delay_time_write_line = 36
-    elif mode == "dispatcher":
-        mode_write_line = 24
-        delay_time_write_line = 38
-    elif mode == "api":
-        mode_write_line = 10
-        delay_time_write_line = 40
-    elif mode == "mqtt":
-        mode_write_line = 12
-        delay_time_write_line = 42
-    else:
-        # callee
-        mode_write_line = 14
-        delay_time_write_line = 44
+
     if call_type == "audiosingle":
-        conf_file_name = "start_single_audio_call.conf"
+        conf_file_name = "start_single_audio_call.json"
     elif call_type == "videosingle":
-        conf_file_name = "start_single_video_call.conf"
+        conf_file_name = "start_single_video_call.json"
     elif call_type in ["audiogroup", "mulgroup"]:
-        conf_file_name = "start_group_audio_call.conf"
+        conf_file_name = "start_group_audio_call.json"
     elif call_type == "videogroup":
-        conf_file_name = "start_group_video_call.conf"
+        conf_file_name = "start_group_video_call.json"
     else:
         conf_file_name = ""
 
     logging.debug("write config node file path:%s" % conf_file_path + conf_file_name)
-    file_msg_list = []
-    with open(conf_file_path + conf_file_name, "r+") as conf_file_path:
-        for conf_line in conf_file_path:
-            file_msg_list.append(conf_line)
+    with open(conf_file_path + conf_file_name, "r") as conf_file:
+        conf_json = json.load(conf_file)
         if state:
-            if isinstance(state, dict):
-                if len(state) > 1:
-                    file_msg_list[mode_write_line - 1] = json.dumps(state) + "\n"
-                else:
-                    for i in state.values():
-                        file_msg_list[mode_write_line - 1] = str(i) + "\n"
-            else:
-                file_msg_list[mode_write_line - 1] = str(state) + "\n"
+            conf_json.get("step_list").get(mode)["state"] = state
         if delay_time:
-            if isinstance(delay_time, dict):
-                total_delay_time = {}
-                for sip, _time in delay_time.items():
-                    time = float(_time.replace("ms", ""))
-                    old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
-                    total_delay_time[sip] = str(time + old_delay_time) + "ms"
-                file_msg_list[delay_time_write_line - 1] = json.dumps(delay_time) + "\n"
-                file_msg_list[45] = json.dumps(total_delay_time) + "\n"
-
-            else:
-                file_msg_list[delay_time_write_line - 1] = str(delay_time) + "\n"
-                # old_delay_time = float(file_msg_list[45].replace("ms\n", ""))
-                # file_msg_list[45] = str(old_delay_time + float(delay_time.replace("ms", ""))) + "ms\n"
-        conf_file_path.seek(0)
-        for line in file_msg_list:
-            conf_file_path.write(line)
+            delay_time = str(delay_time)
+            conf_json.get("step_list").get(mode)["delay_time"] = delay_time
+        if mode == "callee" and user_info:
+            conf_json.get("step_list").get(mode)["user_list"] = user_info
+    with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
+        conf_file.truncate()
+        json.dump(conf_json, conf_file, ensure_ascii=False)
 
 
 def write_log(handle_msg, mode, call_type=None, log_list=None, call_sip=None):
@@ -438,7 +431,6 @@ def public_msg(call_username):
             "url": "http://{}:{}/log/upload".format(host, port)
         }
         msg_str = json.dumps(msg)
-        # logging.debug("{datetime}: public payload: {msg}".format(datetime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%s"), msg=msg_str))
         logging.debug("public topic: %s , payload: %s " % ("/5476752146/log_analyse/{}".format(sip), msg_str))
         client.publish("/5476752146/log_analyse/{}".format(sip), msg_str, 1)
     if isinstance(call_username, list):
@@ -471,14 +463,6 @@ def _get_start_sign(call_name):
     if not start_line or not start_bytes:
         return 0, 0
     return start_line, start_bytes
-#
-#
-# def _set_start_sign(call_name, start_line, start_bytes):
-#     redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-#     redis_client.hset(name=call_name, key="start_line", value=start_line)
-#     redis_client.hset(name=call_name, key="start_bytes", value=start_bytes)
-#     redis_client.close()
-#
 
 
 def del_tmp_path(call_log_tmp_file_path):
@@ -571,13 +555,13 @@ def get_call_type(create_channel_info_list):
 def write_build_id(call_type, build_id):
     conf_file_name = ""
     if call_type == "audiosingle":
-        conf_file_name = "start_single_audio_call.conf"
+        conf_file_name = "start_single_audio_call.json"
     elif call_type == "videosingle":
-        conf_file_name = "start_single_video_call.conf"
+        conf_file_name = "start_single_video_call.json"
     elif call_type in ["audiogroup", "mulgroup"]:
-        conf_file_name = "start_group_audio_call.conf"
+        conf_file_name = "start_group_audio_call.json"
     elif call_type == "videogroup":
-        conf_file_name = "start_group_video_call.conf"
+        conf_file_name = "start_group_video_call.json"
 
     conf_file_path = app.config["CONF_FILE_PATH"]
     template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
@@ -589,16 +573,16 @@ def write_build_id(call_type, build_id):
     if os.path.exists(conf_file_path + conf_file_name):
         os.remove(conf_file_path + conf_file_name)
         copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
-    file_msg_list = []
-    write_line = 16
-    with open(conf_file_path + conf_file_name, "r+") as write_conf_file_path:
-        for conf_line in write_conf_file_path:
-            file_msg_list.append(conf_line)
+    else:
+        copyfile(template_conf_file_path + conf_file_name, conf_file_path + conf_file_name)
+    # import fcntl
+    with open(os.path.join(conf_file_path, conf_file_name), "r") as conf_file:
+        file_info = json.load(conf_file)
+        file_info["build_id_next"] = build_id
 
-        file_msg_list[write_line - 1] = build_id + "\n"
-        write_conf_file_path.seek(0)
-        for line in file_msg_list:
-            write_conf_file_path.write(line)
+    with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
+        conf_file.truncate()
+        json.dump(file_info, conf_file, ensure_ascii=False)
 
 
 def update_start_sign(call_sip, filepath):

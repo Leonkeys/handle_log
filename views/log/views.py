@@ -148,7 +148,9 @@ def log_handle():
         except Exception as e:
             call_type = None
             build_id = None
-            logging.error(e)
+            import traceback
+            error_msg = traceback.format_exc()
+            logging.error(error_msg)
         if call_type and build_id:
 
             write_build_id(call_type, build_id)
@@ -182,6 +184,7 @@ def log_handle():
             for t in thread_list:
                 t.start()
                 t.join()
+            print("handle_end--------------------------------->")
 
 
 if __name__ == '__main__':

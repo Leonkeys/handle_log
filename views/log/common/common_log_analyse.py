@@ -165,6 +165,14 @@ class Processor(object):
         self.processed_num = self.invalid_log = 0
         self.main_stage = []
 
+    def read_in_chunks(self, filepath, mode, chunksize=1024*1024*20):
+        with open(filepath, mode) as fobj:
+            while True:
+                chunk_data = fobj.read(chunksize)
+                if not chunk_data:
+                    break
+                yield chunk_data
+
     def go_process(self):
         """开始处理日志文件"""
         if LOG_TYPE == 'plaintext':
@@ -182,8 +190,16 @@ class Processor(object):
         #with open(self.log_name, 'rb') as f:
         #    file_encode = chardet.detect(f.read())['encoding']
         #print("file_encode:", file_encode)
+
+        if self.log_type == 'caller' or self.log_type == 'callee':
+            #file_encode = 'GB2312'
+            file_encode = 'ISO-8859-1'
+        else:
+            file_encode = 'utf8'
+
         mqtt_line = ''
-        with codecs.open(self.log_name) as fobj:
+        with codecs.open(self.log_name, encoding =file_encode) as fobj:
+        #with codecs.open(self.log_name, encoding = 'ISO-8859-1', errors='ignore') as fobj:
             logging.debug("open:{}".format(self.log_name))
             fobj.seek(last_offset)
             parsed_offset = last_offset
@@ -304,156 +320,150 @@ private_name：   对log匹配结果进行私有业务处理的文件。除了�
 def analyse_main(mod_type,uuid=None, log_name=LOG_PATH, offset_bytes=None, log_format_list=LOG_FORMAT_LIST, private_name='general.py'):
     logging.debug("enter analyse main, mod:{} uuid:{}".format(mod_type, uuid))
     analyse_result = {'log_valid':None,'state':None,'err_msg':None,'delay_time':None,'analyse_prog_err':None}
-    R.acquire()
-    if log_name == '' or mod_type == '':
-        analyse_result["analyse_prog_err"] = "file name or module name none."
-        logging.error("analyse prog err:{}".format(analyse_result['analyse_prog_err']))
-        return analyse_result
-    start_t = time.time()
-    processor = Processor(mod_type, log_name, offset_bytes, log_format_list, private_name)
-    processor.go_process()
+    with R:
+        if log_name == '' or mod_type == '':
+            analyse_result["analyse_prog_err"] = "file name or module name none."
+            logging.error("analyse prog err:{}".format(analyse_result['analyse_prog_err']))
+            return analyse_result
+        start_t = time.time()
+        processor = Processor(mod_type, log_name, offset_bytes, log_format_list, private_name)
+        processor.go_process()
 
-    global ERROR_VALUE
-    if ERROR_VALUE:
-        ERROR_VALUE.clear()
-    ERROR_VALUE = {key:[] for key in err_keys}
-    
-    log_callid = caller = callee = call_t = None
-    in_delay = out_delay = income_percent = outgo_percent = total_percent = ''
-    from_s = to_s = from_sip = to_sip = ''
-    db_client = processor.mymongo.mongodb['main']
-    cursor = db_client.find()
-    li = list(cursor)
-    eue_flag = 0
-    emon_flag = 0
-    num_err = 0
-    #logging.debug("regular exp match result: {}".format(li))
+        global ERROR_VALUE
+        if ERROR_VALUE:
+            ERROR_VALUE.clear()
+        ERROR_VALUE = {key:[] for key in err_keys}
 
-    for i in li:
-        if 'emon_s_flag' in i.keys() or  ('emon_e_flag'in i.keys() and i['emon_e_flag'] == 'end'):
-            log_callid = i['callid'][1:len(i['callid'])-1]
-            if (emon_flag < 2) and log_callid == uuid:
-                emon_flag = emon_flag + 1
+        log_callid = caller = callee = call_t = None
+        in_delay = out_delay = income_percent = outgo_percent = total_percent = ''
+        from_s = to_s = from_sip = to_sip = ''
+        db_client = processor.mymongo.mongodb['main']
+        cursor = db_client.find()
+        li = list(cursor)
+        eue_flag = 0
+        emon_flag = 0
+        num_err = 0
+        #logging.debug("regular exp match result: {}".format(li))
+
+        for i in li:
+            if 'emon_s_flag' in i.keys() or  ('emon_e_flag'in i.keys() and i['emon_e_flag'] == 'end'):
+                log_callid = i['callid'][1:len(i['callid'])-1]
+                if (emon_flag < 2) and log_callid == uuid:
+                    emon_flag = emon_flag + 1
+                else:
+                    continue
+            if 'eue_s_flag' in i.keys() or 'eue_end_flag' in i.keys():
+                log_callid = i['id'][1:len(i['id'])-1]
+                if (eue_flag < 2) and (log_callid == uuid):
+                    eue_flag = eue_flag + 1
+                else:
+                    continue
+
+            if 'out_setup_time' in i.keys():
+                if out_delay == '':
+                    out_delay = i['out_setup_time']
+                else:
+                    continue
+            if 'in_setup_time' in i.keys():
+                if in_delay == '':
+                    in_delay = i['in_setup_time']
+                else:
+                    continue
+            if 'emon_per' in i.keys():
+                if income_percent and outgo_percent and total_percent:
+                    continue
+                else:
+                    if i['emon_per'] == 'Incoming Confirmed ':
+                        income_percent = i['emon_per_value']
+                    if i['emon_per'] == 'Invite Confirmed ':
+                        outgo_percent = i['emon_per_value']
+                    if i['emon_per'] == 'Total Confirmed ':
+                        total_percent = i['emon_per_value']
+            if 'per_and_delay' in i.keys():
+                if in_delay and out_delay and income_percent and outgo_percent and total_percent:
+                    continue
+                else:
+                    if i['per_and_delay'] == 'Incoming Set-up Time(Avg)':
+                        in_delay = i['value']
+                    if i['per_and_delay'] == 'Invite Set-up Time(Avg)':
+                        out_delay = i['value']
+                    if i['per_and_delay'] == 'Incoming Confirmed Percent':
+                        income_percent = i['value'] + '%'
+                    if i['per_and_delay'] == 'Invite Confirmed Percent':
+                        outgo_percent = i['value'] + '%'
+                    if i['per_and_delay'] == 'Total Confirmed Percent':
+                        total_percent = i['value'] + '%'
+            for errkey in err_keys:
+                if errkey in i.keys():
+                    ERROR_VALUE[errkey].append(i[errkey])
+                else:
+                    continue
+        #logging.debug("ERROR_VALUE: {}".format(ERROR_VALUE))
+        end_t = time.time()
+        remote_docker_stat()
+
+        for k in ERROR_VALUE:
+            if ERROR_VALUE[k] == []:
+                num_err += 1
+        #logging.debug("null error_list count :{}".format(num_err))
+
+        if mod_type == 'caller' or mod_type == 'callee':
+            logging.debug("percent :income:{},out:{},total:{},outdelay:{},indelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
+            if emon_flag == 2 or eue_flag == 2:
+                analyse_result['log_valid'] = '1'
+                if num_err == len(ERROR_VALUE):
+                    analyse_result['state'] = '1' #succ
+                else:
+                    analyse_result['state'] = '2' #fail
+                if mod_type == 'caller':
+                    analyse_result['delay_time'] = out_delay
+                else:
+                    analyse_result['delay_time'] = in_delay
             else:
-                continue
-
-        if 'eue_s_flag' in i.keys() or 'eue_end_flag' in i.keys():
-            log_callid = i['id'][1:len(i['id'])-1]
-            if (eue_flag < 2) and (log_callid == uuid):
-                eue_flag = eue_flag + 1
-            else:
-                continue
-
-        if 'out_setup_time' in i.keys():
-            if out_delay == '':
-                out_delay = i['out_setup_time']
-            else:
-                continue
-        if 'in_setup_time' in i.keys():
-            if in_delay == '':
-                in_delay = i['in_setup_time']
-            else:
-                continue
-
-        if 'emon_per' in i.keys():
-            if income_percent and outgo_percent and total_percent:
-                continue
-            else:
-                if i['emon_per'] == 'Incoming Confirmed ':
-                    income_percent = i['emon_per_value']
-                if i['emon_per'] == 'Invite Confirmed ':
-                    outgo_percent = i['emon_per_value']
-                if i['emon_per'] == 'Total Confirmed ':
-                    total_percent = i['emon_per_value']
-        if 'per_and_delay' in i.keys():
-            if in_delay and out_delay and income_percent and outgo_percent and total_percent:
-                continue
-            else:
-                if i['per_and_delay'] == 'Incoming Set-up Time(Avg)':
-                    in_delay = i['value']
-                if i['per_and_delay'] == 'Invite Set-up Time(Avg)':
-                    out_delay = i['value']
-                if i['per_and_delay'] == 'Incoming Confirmed Percent':
-                    income_percent = i['value'] + '%'
-                if i['per_and_delay'] == 'Invite Confirmed Percent':
-                    outgo_percent = i['value'] + '%'
-                if i['per_and_delay'] == 'Total Confirmed Percent':
-                    total_percent = i['value'] + '%'
-        for errkey in err_keys:
-            if errkey in i.keys():
-                ERROR_VALUE[errkey].append(i[errkey])
-            else:
-                continue
-
-    #logging.debug("ERROR_VALUE: {}".format(ERROR_VALUE))
-    end_t = time.time()
-    remote_docker_stat()
-
-    for k in ERROR_VALUE:
-        if ERROR_VALUE[k] == []:
-            num_err += 1
-    #logging.debug("null error_list count :{}".format(num_err))
-
-    if mod_type == 'caller' or mod_type == 'callee':
-        logging.debug("percent :income:{},out:{},total:{},outdelay:{},indelay:{}".format(income_percent, outgo_percent, total_percent, out_delay, in_delay))
-        if emon_flag == 2 or eue_flag == 2:
+                analyse_result['log_valid'] = '2'
+                analyse_result['state'] = '2' #fail
+            analyse_result['err_msg'] = ERROR_VALUE
+        elif mod_type == 'nav' or mod_type == 'dis': #todo nav dis api mqtt
             analyse_result['log_valid'] = '1'
-            if num_err == len(ERROR_VALUE):
+            if num_err == len(ERROR_VALUE) and docker_srv_name[0] not in docker_err.keys() and docker_srv_name[1] not in docker_err.keys() and docker_srv_name[5] not in docker_err.keys() and docker_srv_name[6] not in docker_err.keys():
                 analyse_result['state'] = '1' #succ
             else:
                 analyse_result['state'] = '2' #fail
-            if mod_type == 'caller':
-                analyse_result['delay_time'] = out_delay
+            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+            analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+        elif mod_type == 'api':
+            analyse_result['log_valid'] = '1'
+            if num_err == len(ERROR_VALUE) and docker_srv_name[3] not in docker_err.keys() and docker_srv_name[4] not in docker_err.keys() and docker_srv_name[7] not in docker_err.keys():
+                analyse_result['state'] = '1'
             else:
-                analyse_result['delay_time'] = in_delay
+                analyse_result['state'] = '2'
+            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+            analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+        elif mod_type == 'mqtt':
+            analyse_result['log_valid'] = '1'
+            if num_err == len(ERROR_VALUE) and docker_srv_name[2] not in docker_err.keys():
+                analyse_result['state'] = '1'
+            else:
+                analyse_result['state'] = '2'
+            docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
+            docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
+            analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
         else:
-            analyse_result['log_valid'] = '2'
-            analyse_result['state'] = '2' #fail
-        analyse_result['err_msg'] = ERROR_VALUE
-    elif mod_type == 'nav' or mod_type == 'dis': #todo nav dis api mqtt
-        analyse_result['log_valid'] = '1'
-        if num_err == len(ERROR_VALUE) and docker_srv_name[0] not in docker_err.keys() and docker_srv_name[1] not in docker_err.keys() and docker_srv_name[5] not in docker_err.keys() and docker_srv_name[6] not in docker_err.keys():
-            analyse_result['state'] = '1' #succ
-        else:
-            analyse_result['state'] = '2' #fail
-        docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
-        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
-    elif mod_type == 'api':
-        analyse_result['log_valid'] = '1'
-        if num_err == len(ERROR_VALUE) and docker_srv_name[3] not in docker_err.keys() and docker_srv_name[4] not in docker_err.keys() and docker_srv_name[7] not in docker_err.keys():
-            analyse_result['state'] = '1'
-        else:
-            analyse_result['state'] = '2'
-        docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[2]) if docker_srv_name[2] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
-        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
+            logging.error("mode type error!")
 
-    elif mod_type == 'mqtt':
-        analyse_result['log_valid'] = '1'
-        if num_err == len(ERROR_VALUE) and docker_srv_name[2] not in docker_err.keys():
-            analyse_result['state'] = '1'
-        else:
-            analyse_result['state'] = '2'
-        docker_err.pop(docker_srv_name[0]) if docker_srv_name[0] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[1]) if docker_srv_name[1] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[3]) if docker_srv_name[3] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[4]) if docker_srv_name[4] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[5]) if docker_srv_name[5] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[6]) if docker_srv_name[6] in docker_err.keys() else ''
-        docker_err.pop(docker_srv_name[7]) if docker_srv_name[7] in docker_err.keys() else ''
-        analyse_result['err_msg'] = dict(ERROR_VALUE, **docker_err)
-    else:
-        logging.error("mode type error!")
-
-
-    R.release()
-    logging.debug("exit analyse main, current mod:{}".format(mod_type))
+    logging.debug("exit analyse main, current mod:{} analyse consume time:{}".format(mod_type, end_t - start_t))
     #logging.debug("analyse main, return: {}".format(analyse_result))
     return analyse_result
 

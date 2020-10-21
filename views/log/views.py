@@ -184,7 +184,6 @@ def log_handle():
             for t in thread_list:
                 t.start()
                 t.join()
-            print("handle_end--------------------------------->")
 
 
 if __name__ == '__main__':

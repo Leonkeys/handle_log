@@ -86,10 +86,17 @@ def caller(caller_username, call_type, variable_sip_call_id):
         logging.error("caller analyse_main func error: %s" % error_msg)
         handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
     logging.debug("get caller user start sign ")
-    with open(caller_log_tmp_file_path, "rb") as caller_log_tmp_file:
-        for line_b in caller_log_tmp_file:
-            if line_b:
-                log_list.append(line_b)
+    try:
+        with open(caller_log_tmp_file_path, "r", encoding="utf-8") as caller_log_tmp_file:
+            for line_b in caller_log_tmp_file:
+                if line_b:
+                    print(line_b)
+                    log_list.append(line_b)
+    except:
+        with open(caller_log_tmp_file_path, "r", encoding="gbk") as caller_log_tmp_file:
+            for line_g in caller_log_tmp_file:
+                if line_g:
+                    log_list.append(line_g)
 
     write_node(handle_info, "caller", call_type, log_list)
     if os.path.isfile(caller_log_tmp_file_path):
@@ -275,10 +282,17 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                 handle_info = {"log_valid": "1", "state": "2", "err_msg": error_msg, "delay_time": "0", "analyse_prog_err": ""}
 
             logging.debug("get callee user start sign ")
-            with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
-                for line_b in callee_log_tmp_file:
-                    if line_b:
-                        log_list.append(line_b)
+            try:
+                with open(callee_log_tmp_file_path, "r", encoding="utf-8") as callee_log_tmp_file:
+                    for line_b in callee_log_tmp_file:
+                        if line_b:
+                            log_list.append(line_b)
+            except:
+                log_list = list()
+                with open(callee_log_tmp_file_path, "r", encoding="gbk") as callee_log_tmp_file_g:
+                    for line_g in callee_log_tmp_file_g:
+                        if line_g:
+                            log_list.append(line_g)
 
             write_node(handle_info, "callee", call_type, log_list)
             del_tmp_path(callee_log_tmp_file_path)
@@ -297,10 +311,17 @@ def callee(core_uuid, callee_username_list, call_type, variable_sip_call_id):
                     logging.warning("log handle(sip): {sip} terminal log upload failed.".format(sip=sip))
                     write_log(_handle_info, "callee", call_type=call_type, log_list=log_list, call_sip=sip)
                     continue
-                with open(callee_log_tmp_file_path, "rb") as callee_log_tmp_file:
-                    for line_b in callee_log_tmp_file:
-                        if line_b:
-                            log_list.append(line_b)
+                try:
+                    with open(callee_log_tmp_file_path, "r", encoding="utf-8") as callee_log_tmp_file:
+                        for line_b in callee_log_tmp_file:
+                            if line_b:
+                                log_list.append(line_b)
+                except:
+                    log_list = list()
+                    with open(callee_log_tmp_file_path, "r", encoding="gbk") as callee_log_tmp_file_g:
+                        for line_g in callee_log_tmp_file_g:
+                            if line_g:
+                                log_list.append(line_g)
                 try:
                     _handle_info = com.analyse_main("callee", uuid=variable_sip_call_id, log_name=callee_log_tmp_file_path)
                 except Exception as e:
@@ -412,7 +433,7 @@ def write_log(handle_msg, mode, call_type=None, log_list=None, call_sip=None):
             err_log_file.write(err_msg)
     if isinstance(log_list, list):
         whole_log_file = mode_show_log_path + "whole_log"
-        with open(whole_log_file, "wb") as whole_log_file:
+        with open(whole_log_file, "w") as whole_log_file:
             whole_log_file.truncate()
             for log in log_list:
                 whole_log_file.write(log)

@@ -682,7 +682,6 @@ def get_server_log_line(mode):
 
 
 def get_terminal_log(caller_username, callee_username_list, call_type):
-    # call_err_sip = list()
     call_terminal_log_path = local_file_path + "/tmp/"
     if os.path.exists(call_terminal_log_path):
         ls_terminal_log_file = os.listdir(call_terminal_log_path)
@@ -695,49 +694,4 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
 
     # caller
     public_msg(caller_username)
-    # caller_terminal_log_path = local_file_path + "/tmp/{}_log".format(caller_username)
-    # msg = check_file(caller_terminal_log_path)
-    # if msg:
-    #     caller_handle_msg = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
-    #     if call_type == "videosingle":
-    #         _show_log_path = show_log_path + "start_single_video_call/caller/whole_log"
-    #     elif call_type == "audiosingle":
-    #         _show_log_path = show_log_path + "start_single_audio_call/caller/whole_log"
-    #     elif call_type == "videogroup":
-    #         _show_log_path = show_log_path + "start_group_video_call/caller/whole_log"
-    #     else:
-    #         # audiogroup
-    #         _show_log_path = show_log_path + "start_group_audio_call/caller/whole_log"
-    #     if os.path.isfile(_show_log_path):
-    #         os.remove(_show_log_path)
-    #     write_node(caller_handle_msg, "caller", call_type, [])
-    #     call_err_sip.append(caller_username)
-
-    # callee
-    # if call_type == "videosingle":
-    #     _show_log_path = show_log_path + "start_single_video_call/callee/"
-    # elif call_type == "audiosingle":
-    #     _show_log_path = show_log_path + "start_single_audio_call/callee/"
-    # elif call_type == "videogroup":
-    #     _show_log_path = show_log_path + "start_group_video_call/callee/"
-    # else:
-    #     # audiogroup
-    #     _show_log_path = show_log_path + "start_group_audio_call/callee/"
-    # if os.path.exists(_show_log_path):
-    #     ls_log_path = os.listdir(_show_log_path)
-    #     for _file in ls_log_path:
-    #         if os.path.isdir(_file):
-    #             d_file = call_terminal_log_path + _file
-    #             rmtree(d_file)
-    #         else:
-    #             os.remove(os.path.join(call_terminal_log_path, _file))
     public_msg(callee_username_list)
-    # for callee_sip in callee_username_list:
-    #     terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_sip)
-    #     msg = check_file(terminal_log_path)
-    #     if msg:
-    #         callee_handle_msg = {"log_valid": "1", "state": "2", "err_msg": msg, "delay_time": "0", "analyse_prog_err": ""}
-    #         write_log(callee_handle_msg, "callee", call_type=call_type, log_list=[], call_sip=callee_sip)
-    #         call_err_sip.append(callee_sip)
-    #
-    # return call_err_sip

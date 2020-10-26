@@ -294,7 +294,7 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
         elif call_type in ["audiogroup", "mulgroup"]:
             callee_show_log_path = show_log_path + "start_group_audio_call/callee/" + callee_username + "/whole_log"
         elif call_type == "urgentaudio":
-            callee_show_log_path = show_log_path + "start_urgent_audio_call/callee/whole_log"
+            callee_show_log_path = show_log_path + "start_urgent_single_audio_call/callee/whole_log"
         if call_type in ["audiogroup", "mulgroup", "videogroup"]:
             user_info = dict()
             user_info["name"] = callee_username
@@ -308,14 +308,20 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
         else:
             try:
                 callee_log_list = list()
-                with open(callee_terminal_log_path, "rb") as callee_terminal_log:
+                with open(callee_terminal_log_path, "r", encoding="utf-8") as callee_terminal_log:
                     for log in callee_terminal_log:
                         callee_log_list.append(log)
             except:
-                callee_log_list = list()
-                with open(callee_terminal_log_path, "rb", encoding="gbk") as callee_terminal_log_g:
-                    for log in callee_terminal_log_g:
-                        callee_log_list.append(log)
+                try:
+                    callee_log_list = list()
+                    with open(callee_terminal_log_path, "r", encoding="gbk") as callee_terminal_log_g:
+                        for log in callee_terminal_log_g:
+                            callee_log_list.append(log)
+                except:
+                    callee_log_list = list()
+                    with open(callee_terminal_log_path, "rb") as callee_terminal_log_g:
+                        for log in callee_terminal_log_g:
+                            callee_log_list.append(bytes.decode(log))
             path, file_name = os.path.split(callee_show_log_path)
             if not os.path.exists(path):
                 os.makedirs(path)
@@ -324,7 +330,7 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
                 redis_client.hdel(caller_username, "start_line")
                 redis_client.hdel(caller_username, "start_bytes")
                 redis_client.close()
-            with open(callee_show_log_path, "wb") as show_log_file:
+            with open(callee_show_log_path, "w") as show_log_file:
                 for log in callee_log_list:
                     show_log_file.write(log)
 

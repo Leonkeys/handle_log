@@ -293,13 +293,13 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
         else:
             try:
                 log_list = list()
-                with open(callee_terminal_log_path, "r", encoding="utf-8") as callee_terminal_log:
+                with open(callee_terminal_log_path, "rb") as callee_terminal_log:
                     for log in callee_terminal_log:
                         log_list.append(log)
             except:
                 log_list = list()
-                with open(callee_terminal_log_path, "r", encoding="gbk") as callee_terminal_log:
-                    for log in callee_terminal_log:
+                with open(callee_terminal_log_path, "rb", encoding="gbk") as callee_terminal_log_g:
+                    for log in callee_terminal_log_g:
                         log_list.append(log)
             path, file_name = os.path.split(callee_show_log_path)
             if not os.path.exists(path):
@@ -309,7 +309,7 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
                 redis_client.hdel(caller_username, "start_line")
                 redis_client.hdel(caller_username, "start_bytes")
                 redis_client.close()
-            with open(callee_show_log_path, "w") as show_log_file:
+            with open(callee_show_log_path, "wb") as show_log_file:
                 for log in log_list:
                     show_log_file.write(log)
     update_whole_state(call_type, "callee")
@@ -456,7 +456,7 @@ def mqtt(call_type):
 
 
 def callee(callee_username_list, call_type, callee_sip_uuid, err_sip_list):
-    handle_info = {"log_valid": "1", "state": "2", "err_msg": "", "delay_time": "0", "analyse_prog_err": ""}
+    handle_info = {"log_valid": "1", "state": "1", "err_msg": "", "delay_time": "0", "analyse_prog_err": ""}
     # clean_log_file(call_type)
     if isinstance(callee_username_list, list):
         if "single" in call_type or "urgent" in call_type:

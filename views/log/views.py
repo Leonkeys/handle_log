@@ -33,7 +33,7 @@ def upload_file():
     request:
         file
         call_sip
-        clean_offset: <boolean> emq中传递的偏移值与终端对应不上的时候，终端主动上传该参数为true，
+        clean_offset: <string> emq中传递的偏移值与终端对应不上的时候，终端主动上传该参数为true(type=str)，
     :return:
     """
     if request.method == 'POST':
@@ -44,7 +44,7 @@ def upload_file():
         file = request.files.get('file')
         call_sip = request.form.get('call_sip')
         clean_offset = request.form.get("clean_offset", "False")
-        if clean_offset == "true":
+        if clean_offset.lower() == "true":
             redis_client.hdel(call_sip, "start_line", "start_bytes")
         if file.filename == '':
             logging.error('No selected file')
@@ -103,7 +103,7 @@ def listen_ESL():
         while 1:
             msg = con.recvEvent()
             if msg:
-                print(msg.serialize("json"))
+                # print(msg.serialize("json"))
                 create_channel_dict = json.loads(msg.serialize("json"))
                 core_uuid = create_channel_dict.get("Core-UUID")
                 event_name = create_channel_dict.get("Event-Name")
@@ -146,6 +146,7 @@ def log_handle():
             if not create_channel_dict_l:
                 raise Exception("create_channel_dict_l is not exist")
             call_type, build_id = get_call_type(create_channel_dict_l)
+            logging.debug("call: %s; build_id: %s"% (call_type, build_id))
         except Exception as e:
             call_type = None
             build_id = None
@@ -177,6 +178,7 @@ def log_handle():
                 if remote_log_path:
                     # get_server_log_t = threading.Thread(target=get_server_log, args=(remote_log_path, call_type, func, unique_id_list))
                     get_server_log(remote_log_path, call_type, func, unique_id_list)
+                    update_whole_state(call_type, func)
                     # thread_list.append(get_server_log_t)
             # for t in thread_list:
             #     t.start()

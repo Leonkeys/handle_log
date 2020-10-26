@@ -33,6 +33,7 @@ def get_call_type(create_channel_info_list):
                 caller_user_sip_id = create_channel_info.get("variable_sip_from_user")
                 callee_user_sip_id = create_channel_info.get("variable_sip_to_user")
                 if create_channel_info.get("variable_sip_h_X-NF-Video"):
+                    # daniu
                     call_type = "videosingle"
                     build_id = call_type + "*" + caller_user_sip_id + "*" + callee_user_sip_id + "*00"
                     return call_type, build_id
@@ -50,8 +51,10 @@ def get_call_type(create_channel_info_list):
                 call_type = "urgentaudio"
                 build_id = call_info_str
                 return call_type, build_id
+    # elif Caller-Caller-ID-Number
     else:
         try:
+            logging.debug("esl msg not include inbound: %s" % json.dumps(create_channel_info_list))
             if not create_channel_info_list:
                 raise Exception("create_channel_dict_l is not exist (get_call_type)")
             call_info = create_channel_info_list[0]
@@ -206,6 +209,10 @@ def get_server_log(remote_path, call_type, mode, unique_id_list, local_file=None
                 for line in remote_file:
                     if line:
                         log_list.append(line)
+        if mode == "api" and not log_list:
+            redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+            redis_client.hdel("api", "old_start_bytes", "last_start_bytes")
+            redis_client.close()
 
         with open(whole_log_path, "w") as whole_log_path:
             for i in log_list:
@@ -252,10 +259,18 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             with open(caller_terminal_log_path, "r", encoding="gbk") as caller_terminal_log:
                 for log in caller_terminal_log:
                     log_list.append(log)
+
+        if not log_list:
+            redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+            redis_client.hdel(caller_username, "start_line")
+            redis_client.hdel(caller_username, "start_bytes")
+            redis_client.close()
         with open(whole_log_path, "w") as show_log_file:
             for log in log_list:
                 show_log_file.write(log)
-    # !!!!!! no test
+
+    update_whole_state(call_type, "caller")
+    # callee
     public_msg(callee_username_list)
     for callee_username in callee_username_list:
         callee_terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_username)
@@ -268,7 +283,8 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             callee_show_log_path = show_log_path + "start_group_video_call/callee/" + callee_username + "/whole_log"
         elif call_type in ["audiogroup", "mulgroup"]:
             callee_show_log_path = show_log_path + "start_group_audio_call/callee/" + callee_username + "/whole_log"
-
+        elif call_type == "urgentaudio":
+            callee_show_log_path = show_log_path + "start_urgent_audio_call/callee/whole_log"
         msg = check_file(callee_terminal_log_path)
         if msg:
             if os.path.isfile(callee_show_log_path):
@@ -288,9 +304,15 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             path, file_name = os.path.split(callee_show_log_path)
             if not os.path.exists(path):
                 os.makedirs(path)
+            if not log_list:
+                redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+                redis_client.hdel(caller_username, "start_line")
+                redis_client.hdel(caller_username, "start_bytes")
+                redis_client.close()
             with open(callee_show_log_path, "w") as show_log_file:
                 for log in log_list:
                     show_log_file.write(log)
+    update_whole_state(call_type, "callee")
     return err_sip_list
 
 
@@ -627,3 +649,26 @@ def clean_log_file(call_type, mode):
             else:
                 os.remove(c_path)
 
+
+def update_whole_state(call_type, mode):
+    if call_type == "audiosingle":
+        conf_file_name = "start_single_audio_call.json"
+    elif call_type == "videosingle":
+        conf_file_name = "start_single_video_call.json"
+    elif call_type in ["audiogroup", "mulgroup"]:
+        conf_file_name = "start_group_audio_call.json"
+    elif call_type == "videogroup":
+        conf_file_name = "start_group_video_call.json"
+    elif call_type == "urgentaudio":
+        conf_file_name = "start_urgent_single_audio_call.json"
+    else:
+        conf_file_name = ""
+    conf_file_path = app.config["CONF_FILE_PATH"]
+
+    with open(os.path.join(conf_file_path, conf_file_name), "r") as conf_file:
+        conf_json = json.load(conf_file)
+        conf_json.get("step_list").get(mode)["show_whole_log"] = True
+
+    with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
+        conf_file.truncate()
+        json.dump(conf_json, conf_file, ensure_ascii=False)

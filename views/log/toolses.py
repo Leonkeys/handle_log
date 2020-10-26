@@ -60,7 +60,16 @@ def get_call_type(create_channel_info_list):
             call_info = create_channel_info_list[0]
             call_str = call_info.get("Caller-Caller-ID-Number")
             call_info = call_str.split("*")
-            call_type, build_id = call_info[0], call_info[-3]
+            if len(call_info) > 3:
+                call_type, build_id = call_info[0], call_info[-3]
+            else:
+                if "urgent" in call_str:
+                    call_type = "urgentaudio"
+                    build_id = call_str
+                else:
+                    logging.debug(json.dumps(call_info))
+                    call_type = None
+                    build_id = None
             return call_type, build_id
         except Exception as e:
             import traceback
@@ -271,6 +280,7 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
 
     update_whole_state(call_type, "caller")
     # callee
+    user_info_list = list()
     public_msg(callee_username_list)
     for callee_username in callee_username_list:
         callee_terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_username)
@@ -285,6 +295,11 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             callee_show_log_path = show_log_path + "start_group_audio_call/callee/" + callee_username + "/whole_log"
         elif call_type == "urgentaudio":
             callee_show_log_path = show_log_path + "start_urgent_audio_call/callee/whole_log"
+        if call_type in ["audiogroup", "mulgroup", "videogroup"]:
+            user_info = dict()
+            user_info["name"] = callee_username
+            user_info_list.append(user_info)
+
         msg = check_file(callee_terminal_log_path)
         if msg:
             if os.path.isfile(callee_show_log_path):
@@ -292,27 +307,28 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             err_sip_list.append(callee_username)
         else:
             try:
-                log_list = list()
+                callee_log_list = list()
                 with open(callee_terminal_log_path, "rb") as callee_terminal_log:
                     for log in callee_terminal_log:
-                        log_list.append(log)
+                        callee_log_list.append(log)
             except:
-                log_list = list()
+                callee_log_list = list()
                 with open(callee_terminal_log_path, "rb", encoding="gbk") as callee_terminal_log_g:
                     for log in callee_terminal_log_g:
-                        log_list.append(log)
+                        callee_log_list.append(log)
             path, file_name = os.path.split(callee_show_log_path)
             if not os.path.exists(path):
                 os.makedirs(path)
-            if not log_list:
+            if not callee_log_list:
                 redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
                 redis_client.hdel(caller_username, "start_line")
                 redis_client.hdel(caller_username, "start_bytes")
                 redis_client.close()
             with open(callee_show_log_path, "wb") as show_log_file:
-                for log in log_list:
+                for log in callee_log_list:
                     show_log_file.write(log)
-    update_whole_state(call_type, "callee")
+
+    update_whole_state(call_type, "callee", user_info_list=user_info_list)
     return err_sip_list
 
 
@@ -650,7 +666,7 @@ def clean_log_file(call_type, mode):
                 os.remove(c_path)
 
 
-def update_whole_state(call_type, mode):
+def update_whole_state(call_type, mode, user_info_list=None):
     if call_type == "audiosingle":
         conf_file_name = "start_single_audio_call.json"
     elif call_type == "videosingle":
@@ -668,6 +684,8 @@ def update_whole_state(call_type, mode):
     with open(os.path.join(conf_file_path, conf_file_name), "r") as conf_file:
         conf_json = json.load(conf_file)
         conf_json.get("step_list").get(mode)["show_whole_log"] = True
+        if user_info_list:
+            conf_json.get("step_list").get(mode)["user_list"] = user_info_list
 
     with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
         conf_file.truncate()

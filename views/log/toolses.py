@@ -606,7 +606,7 @@ def write_conf(handle_info, mode, call_type=None, user_info=None):
         if state:
             conf_json.get("step_list").get(mode)["state"] = state
         if delay_time:
-            delay_time = str(delay_time)
+            delay_time = str(round(int(delay_time), 2))
             conf_json.get("step_list").get(mode)["delay_time"] = delay_time
         if mode == "callee" and user_info:
             conf_json.get("step_list").get(mode)["user_list"] = user_info

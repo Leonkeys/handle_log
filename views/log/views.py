@@ -79,11 +79,14 @@ def clean_offset():
     if request.method.upper() == "POST":
         call_sip = request.form.get("call_sip")
         logging.debug("clean_offset：%s" % call_sip)
-        redis_client.hdel(call_sip, "start_line", "start_bytes")
-        resp = make_response({"state": "is_success"})
-        resp.status = "200"
-        return resp
-
+        if call_sip:
+            redis_client.hdel(call_sip, "start_line", "start_bytes")
+            resp = make_response({"state": "is_success"})
+            resp.status = "200"
+            return resp
+        else:
+            resp = make_response({"state":"is_failed", "msg": "call_sip cannot be none"})
+            resp.status = "400"
 
 @retry(stop_max_attempt_number=10, wait_fixed=2000)
 def listen_ESL():

@@ -62,8 +62,7 @@ def upload_file():
                 os.makedirs(file_floder_path)
             file.save(filepath)
         update_start_sign(call_sip, filepath)
-        threading.Thread(target=update_start_sign, args=(call_sip, filepath))
-        # executor.submit(update_start_sign, call_sip, filepath)
+        # threading.Thread(target=update_start_sign, args=(call_sip, filepath)).start()
         return '{"filename":"%s"}' % filename
     return ' '
 
@@ -130,6 +129,7 @@ def call_func(func, *args, **kwargs):
 
 def put_msg(core_uuid, msg_dict):
     if start_call_queue.full():
+        logging.debug("======================queue is full====================")
         start_call_queue.get()
     start_call_queue.put(msg_dict[core_uuid])
     del msg_dict[core_uuid]

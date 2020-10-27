@@ -252,37 +252,45 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
 
     caller_terminal_log_path = local_file_path + "/tmp/{}_log".format(caller_username)
     whole_log_path = get_whole_log_path(call_type, "caller")
-    msg = check_file(caller_terminal_log_path)
-    if msg:
-        if os.path.isfile(whole_log_path):
-            os.remove(whole_log_path)
-        err_sip_list.append(caller_username)
-    else:
+    _err_sip_list = check_file(err_sip_list, caller_user=caller_username)
+    err_sip_list = err_sip_list + _err_sip_list
+    try:
+        caller_log_list = list()
+        with open(caller_terminal_log_path, "r", encoding="utf-8") as caller_terminal_log:
+            for log in caller_terminal_log:
+                caller_log_list.append(log)
+    except:
         try:
-            log_list = list()
-            with open(caller_terminal_log_path, "r", encoding="utf-8") as caller_terminal_log:
-                for log in caller_terminal_log:
-                    log_list.append(log)
-        except:
-            log_list = list()
+            caller_log_list = list()
             with open(caller_terminal_log_path, "r", encoding="gbk") as caller_terminal_log:
                 for log in caller_terminal_log:
-                    log_list.append(log)
+                    caller_log_list.append(log)
+        except:
+            logging.error("caller {caller_sip} decode failed".format(caller_sip=caller_username))
+            caller_clean_offset = True
 
-        if not log_list:
-            redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-            redis_client.hdel(caller_username, "start_line")
-            redis_client.hdel(caller_username, "start_bytes")
-            redis_client.close()
-        with open(whole_log_path, "w") as show_log_file:
-            for log in log_list:
-                show_log_file.write(log)
+    if not caller_log_list and not caller_clean_offset:
+        redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+        redis_client.hdel(caller_username, "start_line")
+        redis_client.hdel(caller_username, "start_bytes")
+        redis_client.close()
+    with open(whole_log_path, "w") as show_log_file:
+        for log in caller_log_list:
+            show_log_file.write(log)
 
     update_whole_state(call_type, "caller")
+
     # callee
     user_info_list = list()
     public_msg(callee_username_list)
+
+    _err_sip_list = check_file(err_sip_list, callee_user_list=callee_username_list)
+    err_sip_list = err_sip_list + _err_sip_list
     for callee_username in callee_username_list:
+        if callee_username in _err_sip_list:
+            logging.debug("callee {callee_sip} upload log error".format(callee_sip=callee_username))
+            continue
+        logging.debug("get callee terminal log :%s" % callee_username)
         callee_terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_username)
 
         if call_type == "videosingle":
@@ -300,39 +308,38 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             user_info["name"] = callee_username
             user_info_list.append(user_info)
 
-        msg = check_file(callee_terminal_log_path)
-        if msg:
-            if os.path.isfile(callee_show_log_path):
-                os.remove(callee_show_log_path)
-            err_sip_list.append(callee_username)
-        else:
+        # msg = check_file(callee_terminal_log_path)
+        # if msg:
+        #     if os.path.isfile(callee_show_log_path):
+        #         os.remove(callee_show_log_path)
+        #     err_sip_list.append(callee_username)
+        # else:
+        callee_log_list = list()
+        try:
+            with open(callee_terminal_log_path, "r", encoding="utf-8") as callee_terminal_log:
+                for log in callee_terminal_log:
+                    callee_log_list.append(log)
+        except:
             try:
                 callee_log_list = list()
-                with open(callee_terminal_log_path, "r", encoding="utf-8") as callee_terminal_log:
-                    for log in callee_terminal_log:
+                with open(callee_terminal_log_path, "r", encoding="gbk") as callee_terminal_log_g:
+                    for log in callee_terminal_log_g:
                         callee_log_list.append(log)
             except:
-                try:
-                    callee_log_list = list()
-                    with open(callee_terminal_log_path, "r", encoding="gbk") as callee_terminal_log_g:
-                        for log in callee_terminal_log_g:
-                            callee_log_list.append(log)
-                except:
-                    callee_log_list = list()
-                    with open(callee_terminal_log_path, "rb") as callee_terminal_log_g:
-                        for log in callee_terminal_log_g:
-                            callee_log_list.append(bytes.decode(log))
-            path, file_name = os.path.split(callee_show_log_path)
-            if not os.path.exists(path):
-                os.makedirs(path)
-            if not callee_log_list:
-                redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-                redis_client.hdel(caller_username, "start_line")
-                redis_client.hdel(caller_username, "start_bytes")
-                redis_client.close()
-            with open(callee_show_log_path, "w") as show_log_file:
-                for log in callee_log_list:
-                    show_log_file.write(log)
+                logging.error("callee {callee_sip} log decode failed".format(callee_sip=callee_username))
+                clean_sip_offset = True
+        path, file_name = os.path.split(callee_show_log_path)
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        if not callee_log_list and not clean_sip_offset:
+            redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+            redis_client.hdel(caller_username, "start_line")
+            redis_client.hdel(caller_username, "start_bytes")
+            redis_client.close()
+        with open(callee_show_log_path, "w") as show_log_file:
+            for log in callee_log_list:
+                show_log_file.write(log)
 
     update_whole_state(call_type, "callee", user_info_list=user_info_list)
     return err_sip_list
@@ -376,15 +383,22 @@ def _get_start_sign(call_name):
     return start_line, start_bytes
 
 
-def check_file(call_log_path):
+def check_file(error_sip_list, caller_user=None, callee_user_list=None):
     '''
     检查终端日志文件是否上传成功。
     '''
-    for i in range(15):
-        if os.path.isfile(call_log_path):
-            return
-        time.sleep(1)
-    return "terminal log upload failed"
+    time.sleep(15)
+    if callee_user_list and isinstance(callee_user_list, list):
+        for callee_user in callee_user_list:
+            callee_terminal_log_path = local_file_path + "/tmp/{}_log".format(callee_user)
+            if not os.path.isfile(callee_terminal_log_path):
+                error_sip_list.append(callee_user)
+
+    if caller_user and isinstance(caller_user, str):
+        caller_terminal_log_path = local_file_path + "/tmp/{}_log".format(caller_user)
+        if not os.path.isfile(caller_terminal_log_path):
+            error_sip_list.append(caller_user)
+    return error_sip_list
 
 
 def get_server_log_line(mode):

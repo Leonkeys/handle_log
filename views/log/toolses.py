@@ -81,7 +81,10 @@ def get_call_type(create_channel_info_list):
 
 
 def update_start_sign(call_sip, filepath):
-    file_bytes = os.path.getsize(filepath)
+    if os.path.exists(filepath):
+        file_bytes = os.path.getsize(filepath)
+    else:
+        file_bytes = 0
     file_line = 0
     with open(filepath, "rb") as call_filepath:
         for line_b in call_filepath:

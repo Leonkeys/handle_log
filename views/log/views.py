@@ -155,68 +155,48 @@ def log_handle():
             import traceback
             error_msg = traceback.format_exc()
             logging.error(error_msg)
-        if call_type and build_id:
+        try:
+            if call_type and build_id:
 
-            write_build_id(call_type, build_id)
-            caller_username, callee_username_list = get_call_username(create_channel_dict_l)
-            caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
-            unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
-            # thread_list = list()
-            # get log
-            # get_terminal_log_t = threading.Thread(target=get_terminal_log, args=(caller_username, callee_username_list, call_type))
-            # thread_list.append(get_terminal_log_t)
-            err_sip_list = get_terminal_log(caller_username, callee_username_list, call_type)
-            for func, remote_log_path in remote_log_path_list.items():
-                logging.debug("func: %s" % func)
-                if func == "mqtt":
-                    remote_log_path = get_mqtt_log_path(remote_log_path)
-                    filename = "emqttd.log"
-                    remote_log_path = remote_log_path + "/" + filename
-                elif func == "api":
-                    filename = time.strftime("%Y%m%d", time.localtime()) + ".log"
-                    remote_log_path = remote_log_path + filename
-                else:  # str
-                    filename = remote_log_path.split("/")[-1]
-                if remote_log_path:
-                    # get_server_log_t = threading.Thread(target=get_server_log, args=(remote_log_path, call_type, func, unique_id_list))
-                    get_server_log(remote_log_path, call_type, func, unique_id_list)
-                    update_whole_state(call_type, func)
-                    # thread_list.append(get_server_log_t)
-            # for t in thread_list:
-            #     t.start()
+                write_build_id(call_type, build_id)
+                caller_username, callee_username_list = get_call_username(create_channel_dict_l)
+                caller_sip_uuid, callee_sip_uuid = get_sip_uuid(create_channel_dict_l)
+                unique_id_list = [i.get("Unique-ID") for i in create_channel_dict_l if i.get("Event-Name") == "CHANNEL_CREATE"]
+                # thread_list = list()
+                # get log
+                # get_terminal_log_t = threading.Thread(target=get_terminal_log, args=(caller_username, callee_username_list, call_type))
+                # thread_list.append(get_terminal_log_t)
+                err_sip_list = get_terminal_log(caller_username, callee_username_list, call_type)
+                for func, remote_log_path in remote_log_path_list.items():
+                    logging.debug("func: %s" % func)
+                    if func == "mqtt":
+                        remote_log_path = get_mqtt_log_path(remote_log_path)
+                        filename = "emqttd.log"
+                        remote_log_path = remote_log_path + "/" + filename
+                    elif func == "api":
+                        filename = time.strftime("%Y%m%d", time.localtime()) + ".log"
+                        remote_log_path = remote_log_path + filename
+                    else:  # str
+                        filename = remote_log_path.split("/")[-1]
+                    if remote_log_path:
+                        # get_server_log_t = threading.Thread(target=get_server_log, args=(remote_log_path, call_type, func, unique_id_list))
+                        get_server_log(remote_log_path, call_type, func, unique_id_list)
+                        update_whole_state(call_type, func)
+                        # thread_list.append(get_server_log_t)
+                # for t in thread_list:
+                #     t.start()
 
-            caller(caller_username, call_type, caller_sip_uuid, err_sip_list)
-            handle_mode = remote_log_path_list.keys()
-            for mode in handle_mode:
-                call_func(mode, call_type)
-            callee(callee_username_list, call_type, callee_sip_uuid, err_sip_list)
+                caller(caller_username, call_type, caller_sip_uuid, err_sip_list)
+                handle_mode = remote_log_path_list.keys()
+                for mode in handle_mode:
+                    call_func(mode, call_type)
+                callee(callee_username_list, call_type, callee_sip_uuid, err_sip_list)
 
-
-            # caller(caller_username, call_type, caller_sip_uuid)
-            # caller_t = threading.Thread(target=caller, args=(caller_username, call_type, caller_sip_uuid))
-            # thread_list.append(caller_t)
-            # for func, remote_log_path in remote_log_path_list.items():
-            #     logging.debug("func: %s" % func)
-            #     if func == "mqtt":
-            #         remote_log_path = get_mqtt_log_path(remote_log_path)
-            #         filename = "emqttd.log"
-            #         remote_log_path = remote_log_path + "/" + filename
-            #     elif func == "api":
-            #         filename = time.strftime("%Y%m%d", time.localtime()) + ".log"
-            #         remote_log_path = remote_log_path + filename
-            #     else:  # str
-            #         filename = remote_log_path.split("/")[-1]
-            #     if remote_log_path:
-            #         get_server_log(remote_log_path)
-            #
-            #     func = threading.Thread(target=call_func, args=(func, core_uuid, unique_id_list, filename, call_type))
-            #     thread_list.append(func)
-            # callee_t = threading.Thread(target=callee, args=(core_uuid, callee_username_list, call_type, callee_sip_uuid))
-            # thread_list.append(callee_t)
-            # for t in thread_list:
-            #     t.start()
-            #     t.join()
-            print("handle_log ---------------------------------------------------------> end")
+                print("handle_log ---------------------------------------------------------> end")
+        except Exception as e:
+            import traceback
+            error_msg = traceback.format_exc()
+            logging.error(error_msg)
 
 
 if __name__ == '__main__':

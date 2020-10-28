@@ -66,6 +66,9 @@ def get_call_type(create_channel_info_list):
                 if "urgent" in call_str:
                     call_type = "urgentaudio"
                     build_id = call_str
+                elif "broadcastgroup" in call_str:
+                    call_type = "broadcastgroup"
+                    build_id = call_str
                 else:
                     logging.debug(json.dumps(call_info))
                     call_type = None
@@ -112,6 +115,8 @@ def write_build_id(call_type, build_id):
         conf_file_name = "start_group_video_call.json"
     elif call_type == "urgentaudio":
         conf_file_name = "start_urgent_single_audio_call.json"
+    elif call_type == "broadcastgroup":
+        conf_file_name = "start_radio_call.json"
 
     conf_file_path = app.config["CONF_FILE_PATH"]
     template_conf_file_path = app.config["TEMPLATE_CONF_FILE_PATH"]
@@ -140,6 +145,10 @@ def get_call_username(create_channel_dict_l):
         if create_channel_dict.get("Caller-Caller-ID-Number") and create_channel_dict.get("Event-Name") == "CHANNEL_CREATE":
             if create_channel_dict.get("Caller-Caller-ID-Number").isdigit():
                 caller_username = create_channel_dict.get("Caller-Caller-ID-Number")
+            else:
+                _caller_username = create_channel_dict.get("Caller-Caller-ID-Name").split("*")[-1]
+                if _caller_username.isdigit():
+                    caller_username = _caller_username
         if create_channel_dict.get("Caller-Callee-ID-Number") and create_channel_dict.get("Event-Name") == "CHANNEL_CREATE":
             if create_channel_dict.get("Caller-Callee-ID-Number").isdigit():
                 callee_username_list.append(create_channel_dict.get("Caller-Callee-ID-Number"))
@@ -303,6 +312,8 @@ def get_terminal_log(caller_username, callee_username_list, call_type):
             callee_show_log_path = show_log_path + "start_group_audio_call/callee/" + callee_username + "/whole_log"
         elif call_type == "urgentaudio":
             callee_show_log_path = show_log_path + "start_urgent_single_audio_call/callee/whole_log"
+        elif call_type == "broadcastgroup":
+            callee_show_log_path = show_log_path + "start_radio_call/callee/" + callee_username + "/whole_log"
         if call_type in ["audiogroup", "mulgroup", "videogroup"]:
             user_info = dict()
             user_info["name"] = callee_username
@@ -577,7 +588,7 @@ def write_node(handle_info, mode, call_type, user_info=None):
     """
     logging.debug("%s write_node " % mode)
     # 视频单呼组呼，音频单呼组呼。
-    if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup", "mulgroup", "urgentaudio"]:
+    if call_type in ["audiosingle", "videosingle", "videogroup", "audiogroup", "mulgroup", "urgentaudio", "broadcastgroup"]:
         write_conf(handle_info, mode, call_type=call_type, user_info=user_info)
         write_log(handle_info, mode, call_type=call_type)
 
@@ -597,6 +608,8 @@ def write_conf(handle_info, mode, call_type=None, user_info=None):
         conf_file_name = "start_group_video_call.json"
     elif call_type == "urgentaudio":
         conf_file_name = "start_urgent_single_audio_call.json"
+    elif call_type == "broadcastgroup":
+        conf_file_name = "start_radio_call.json"
     else:
         conf_file_name = ""
 
@@ -631,6 +644,8 @@ def write_log(handle_info, mode, call_type=None, call_sip=None):
         mode_show_log_path = show_log_path + "start_group_video_call/" + mode + "/"
     elif call_type == "urgentaudio":
         mode_show_log_path = show_log_path + "start_urgent_single_audio_call/" + mode + "/"
+    elif call_type == "broadcastgroup":
+        mode_show_log_path = show_log_path + "start_radio_call/" + mode + "/"
     if mode == "callee" and call_sip:
         mode_show_log_path = mode_show_log_path + call_sip + "/"
     if not os.path.exists(mode_show_log_path):
@@ -661,6 +676,8 @@ def get_whole_log_path(call_type, mode):
         return show_log_path + "start_group_video_call/" + mode + "/whole_log"
     elif call_type == "urgentaudio":
         return show_log_path + "start_urgent_single_audio_call/" + mode + "/whole_log"
+    elif call_type == "broadcastgroup":
+        return show_log_path + "start_radio_call/" + mode + "/whole_log"
 
 
 def set_server_log_line(mode, new_start_bytes):
@@ -697,16 +714,18 @@ def update_whole_state(call_type, mode, user_info_list=None):
         conf_file_name = "start_group_video_call.json"
     elif call_type == "urgentaudio":
         conf_file_name = "start_urgent_single_audio_call.json"
+    elif call_type == "broadcastgroup":
+        conf_file_name = "start_radio_call.json"
     else:
         conf_file_name = ""
     conf_file_path = app.config["CONF_FILE_PATH"]
+    if conf_file_name:
+        with open(os.path.join(conf_file_path, conf_file_name), "r") as conf_file:
+            conf_json = json.load(conf_file)
+            conf_json.get("step_list").get(mode)["show_whole_log"] = True
+            if user_info_list:
+                conf_json.get("step_list").get(mode)["user_list"] = user_info_list
 
-    with open(os.path.join(conf_file_path, conf_file_name), "r") as conf_file:
-        conf_json = json.load(conf_file)
-        conf_json.get("step_list").get(mode)["show_whole_log"] = True
-        if user_info_list:
-            conf_json.get("step_list").get(mode)["user_list"] = user_info_list
-
-    with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
-        conf_file.truncate()
-        json.dump(conf_json, conf_file, ensure_ascii=False)
+        with open(os.path.join(conf_file_path, conf_file_name), "w") as conf_file:
+            conf_file.truncate()
+            json.dump(conf_json, conf_file, ensure_ascii=False)

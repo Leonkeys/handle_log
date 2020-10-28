@@ -148,7 +148,7 @@ def log_handle():
             if not create_channel_dict_l:
                 raise Exception("create_channel_dict_l is not exist")
             call_type, build_id = get_call_type(create_channel_dict_l)
-            logging.debug("call: %s; build_id: %s"% (call_type, build_id))
+            logging.debug("call: %s; build_id: %s" % (call_type, build_id))
         except Exception as e:
             call_type = None
             build_id = None
